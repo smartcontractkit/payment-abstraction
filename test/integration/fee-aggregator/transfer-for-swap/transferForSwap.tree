@@ -1,0 +1,10 @@
+transferForSwap.t.sol
+├── when the contract is paused
+│   └── it should revert
+├── when the caller is not the SwapAutomator
+│   └── it should revert
+└── when the caller is the SwapAutomator
+    ├── it should revert when transferring a zero amount
+    ├── it should revert when transferring a a non-allowlisted asset
+    ├── it should transfer the asset amount to the SwapAutomator
+    └── it should transfer the LINK amount to the SwapAutomator

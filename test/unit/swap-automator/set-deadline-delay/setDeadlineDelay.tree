@@ -1,0 +1,15 @@
+setDeadlineDelay.t.sol
+├── when the caller does not have the ASSET_ADMIN_ROLE
+│   └── it should revert
+└── when the caller has the ASSET_ADMIN_ROLE
+    ├── when the new deadline delay is set to the same value than the current deadline delay
+    │   └── it should revert
+    └── when the new deadline delay is set to a different value than the current deadline delay
+        ├── when the deadline delay is set to a value lower than the minimum threshold
+        │   └── it should revert
+        └── when the deadline delay is set to a value greater or equal than the minimum threshold
+            ├── when the deadline delay is set to a value greater than the maximum threshold
+            │   └── it should revert
+            └── when the deadline delay is set to a value lower or equal than the maximum threshold
+                ├── it should set the new deadline delay
+                └── it should emit a DeadlineDelaySet event

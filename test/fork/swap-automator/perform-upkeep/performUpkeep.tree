@@ -1,0 +1,44 @@
+performUpkeep.t.sol
+├── given the contract is paused
+│   └── it should revert
+└── given the contract is not paused
+    ├── when the caller is not the forwarder
+    │   └── it should revert
+    └── when the caller is the forwarder
+        ├── when timestamp of the transaction is greater than the deadline
+        │   └── it should revert
+        ├── given the recipent is corrupted and does not match the recipent of FeeAggregatorReceiver contract
+        │   └── it should revert
+        ├── given the swap path of any asset is corrupted and does not match the swap path of the asset as set in applyAssetSwapParamsUpdates()
+        │   └── it should revert
+        ├── given the gas price exceeds the set max gas price
+        │   └── it should revert
+        └── given the gas price is less than the set max gas price
+            ├── when timestamp of the transaction is greater than the deadline
+            │   └── it should revert
+        ├── when timestamp of the transaction is less or equal than than the deadline
+            ├── when asset is LINK
+            │        └── it should transfer LINK to LINK receiver 
+            ├── when asset is not LINK
+                ├── given a single swap with using a single pool
+                │   ├── when the amount received from the swap is less than the minimum amount required
+                │   │   └── it should revert
+                │   └── when the amount received from the swap is greater than or equal to the minimum amount required
+                │       ├── it should transfer the amount received from the swap to the receiver
+                │       ├── it should update the latest swap timestamp of the asset
+                │       └── it should emit an AssetSwapped event
+                ├── given a single swap with using multiple pools
+                │   ├── when the amount received from the swap is less than the minimum amount required
+                │   │   └── it should revert
+                │   └── when the amount received from the swap is greater than or equal to the minimum amount required
+                │       ├── it should transfer the amount received from the swap to the receiver
+                │       ├── it should update the latest swap timestamp of the asset
+                │       └── it should emit an AssetSwapped event
+                └── given multiple swaps with using both a single and multiple pools
+                    ├── when the amount received from the swap is less than the minimum amount required
+                    │   └── it should revert
+                    └── when the amount received from the swap is greater than or equal to the minimum amount required
+                        ├── it should transfer the amount received from the swap to the receiver
+                        ├── it should update the latest swap timestamp of the asset
+                        └── it should emit an AssetSwapped event
+

@@ -1,0 +1,11 @@
+remove.t.sol
+├─ when removing an existing value
+│  ├─ it should return true
+│  ├─ it should decrement the length
+│  ├─ it should not contain the value
+│  └─ it should equal the new expected set
+└─ when removing a non existing value
+   ├─ it should return false
+   ├─ it should not decrement the length
+   ├─ it should still contain the original values
+   └─ it should still equal the original set

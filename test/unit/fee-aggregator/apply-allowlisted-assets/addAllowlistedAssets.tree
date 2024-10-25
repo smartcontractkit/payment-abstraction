@@ -1,0 +1,17 @@
+addAllowListedAssets.t.sol
+├── when the caller does not have the ASSET_ADMIN_ROLE
+│   └── it should revert
+└── when the caller has the ASSET_ADMIN_ROLE
+    ├── given the contract is paused
+    │   └── it should revert
+    └── given the contract is not paused
+        ├── when the added assets list is empty
+        │   └── it should revert
+        └── when the added assets list is not empty
+            ├── when any asset within assets list is zero addess 
+            │   └── it should revert
+            ├── when the asset is already allowlisted
+            │   └── it should revert
+            └── when the asset is not already allowlisted
+                ├── it should add the asset to the allow list
+                └── it should emit an AssetAllowlisted event

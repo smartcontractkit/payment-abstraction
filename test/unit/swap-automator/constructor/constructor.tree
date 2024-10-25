@@ -1,0 +1,22 @@
+constructor.t.sol
+├── when the linkToken is set to the zero address
+│   └── it should revert
+└── when the linkToken is set to a non-zero addresse
+    ├── when the linkUsdFeed is set to the zero address
+    │   └── it should revert
+    └── when the linkUsdFeed is set to a non-zero addresses
+        ├── when the uniswapRouter is set to the zero address
+        │   └── it should revert
+        └── when the uniswapRouter is set to a non-zero addresses
+            ├── when the deadline delay is set to a value lower than the minimum threshold
+            │   └── it should revert
+            └── when the deadline delay is set to a value greater or equal than the minimum threshold
+                ├── when the deadline delay is set to a value greater than the maximum threshold
+                │   └── it should revert
+                └── when the deadline delay is set to a value lower or equal than the maximum threshold
+                    ├── it should set the linkToken address
+                    ├── it should set the linkUsdFeed address
+                    ├── it should set the uniswapRouter address
+                    ├── it should set the deadline delay
+                    ├── it should emit the DeadlineDelaySet event
+                    └── it should retun type and version

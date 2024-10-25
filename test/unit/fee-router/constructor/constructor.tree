@@ -1,0 +1,7 @@
+constructor
+├─ when fee aggregator receiver is set to address zero
+│  └─ it should revert
+└─ when fee aggregator receiver is not set to address zero
+   ├─ it should set fee aggregator receiver
+   ├─ it should emit a FeeAggregatorSet event
+   └─ type and version should be correctly set

@@ -1,0 +1,15 @@
+setForwarder.t.sol
+├── when the caller does not have the DEFAULT_ADMIN_ROLE
+│   └── it should revert
+└── when the caller has the DEFAULT_ADMIN_ROLE
+    ├── when the contract is not paused
+    │   ├── when the new forwarder address is the zero address
+    │   │   └── it should revert
+    │   ├── when the new forwarder address is not updated
+    │   │   └── it should revert
+    │   └── when the new forwarder address is not the zero address
+    │       ├── it should set the forwarder address
+    │       └── it should emit a ForwarderSet event
+    └── when the contract is paused
+        └── when the new forwarder address is not the zero address
+            └── it should set the forwarder address

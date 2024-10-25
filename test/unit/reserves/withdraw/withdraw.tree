@@ -1,0 +1,11 @@
+withdraw.t.sol
+├── when the contract is paused
+│   └── it should revert
+├── when the list of service provider is empty
+│   └── it should revert
+└── when the list of service provider is not empty
+    ├── when the service provider's balance is less than 1
+    │   └── it should revert
+    └── when the service provider's balance is greater than or equal to 1
+        ├── it should transfer the outstanding balance to the service provider
+        └── it should emit a Withdrawn event

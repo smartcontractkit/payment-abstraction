@@ -1,0 +1,12 @@
+setFeeAggregatorReceiver
+├── when the caller does not have the DEFAULT_ADMIN_ROLE
+│   └── it should revert
+└── when the caller has the DEFAULT_ADMIN_ROLE
+    ├── when the fee aggregator receiver address is the zero address
+    │   └── it should revert
+    └── when the fee aggregator receiver address is not the zero address
+        ├── when the fee aggregator receiver address is the same as the already configured fee aggregator receiver
+        │   └── it should revert
+        └── when the fee aggregator receiver is different from what is already configured
+            ├── it should update the fee aggregator receiver
+            └── it should emit a FeeAggregatorReceiverUpdated event

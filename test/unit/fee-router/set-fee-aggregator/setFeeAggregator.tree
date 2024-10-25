@@ -1,0 +1,15 @@
+setFeeAggregator.t.sol
+├─ when the caller does not have the DEFAULT_ADMIN_ROLE
+│  └─ it should revert
+└─ when the caller has the DEFAULT_ADMIN_ROLE
+   ├─ when the fee aggregator sender is set to address zero
+   │  └─ it should revert
+   └─ when the fee aggregator sender not set to address zero
+      ├─ when the new fee aggregator is set to the same address as the old one
+      │  └─ it should revert
+      └─ when the new fee aggregator is set to a different address than the old one
+         ├─ when the new fee aggregator does not suppor the IFeeAggregator interface
+         │  └─ it should revert
+         └─ whent the new fee aggregator supports the IFeeAggregator interface
+            ├─ it should set the new fee aggregator sender
+            └─ it should emit a FeeAggregatorSet event

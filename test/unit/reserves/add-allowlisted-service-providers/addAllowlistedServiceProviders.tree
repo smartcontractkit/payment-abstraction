@@ -1,0 +1,13 @@
+addAllowlistedServiceProviders.t.sol
+├── when the caller does not have the EARMARK_MANAGER_ROLE
+│   └── it should revert
+└── when the caller has the EARMARK_MANAGER_ROLE
+    ├── when the added service providers list is empty
+    │   └── it should revert
+    └── when the added service providers list is not empty
+        ├── when the service provider is already allowlisted
+        │   └── it should continue with the next service provider
+        ├── when the service provider is not already allowlisted
+            ├── it should add the service provider to the allow list
+            └── it should emit an ServiceProviderAllowlisted event
+        

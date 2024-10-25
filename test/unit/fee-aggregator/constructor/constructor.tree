@@ -1,0 +1,13 @@
+constructor.t.sol
+├── when the linkToken is set to the zero address
+│   └── it should revert
+└── when the linkToken is set to non-zero addresses
+    ├── when the receiver is set to the zero address
+    │   └── it should revert
+    └── when the receiver is set to a non-zero address
+        ├── when the max gas price is set to zero
+        │   └── it should revert
+        └── when the max gas price is set to non-zero
+            ├── it should set the linkToken address
+            ├── it should return contract type and version
+            └── it should return true for the supported interfaces

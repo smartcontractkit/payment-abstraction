@@ -1,0 +1,20 @@
+transferAllowlistedAssets.t.sol
+├── when the caller does not have the BRIDGER_ROLE
+│   └── it should revert
+└── when the callder has the BRIDGER_ROLE
+    ├── when the contract is paused
+    │   └── it should revert
+    └── when the contract in not paused
+        ├── when the asset list is empty
+        │   └── it should revert
+        └── when the asset list is not empty
+            ├─ when the asset list does not have the same length as the amount list
+            │  └─ it should revert
+            └─ when the asset list has the same length as the amount list
+                ├── when the amount to transfer is zero
+                │   └── it should revert
+                └── when the amount to transfer is not zero
+                    ├─ when the transferred asset is not allowlisted
+                    │  └─ it should revert
+                    └─ when the transferred asset is allowlisted
+                        └── it should transfer the assets to the fee aggregator receiver

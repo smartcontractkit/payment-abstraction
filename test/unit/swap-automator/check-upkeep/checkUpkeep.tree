@@ -1,0 +1,19 @@
+checkUpkeep.t.sol
+├── given the contract is paused
+│   └── it should return false and empty bytes
+└── given the contract is not paused
+    └── given an allowlisted asset
+        ├── given the swap params are not set
+        │   └── it should return false and empty bytes
+        ├── given the asset price is stale
+        │   └── it should return false and empty bytes
+        └── given the asset price is not stale
+            ├── given the asset's available balance is lower than the minimum swap size
+            │   └── it should return false and empty bytes
+            ├── given the asset's lastest swap occured less than the minimum swap interval ago
+            │   └── it should return false and empty bytes
+            ├── given the LINK price is stale
+            │   └── it should return false and empty bytes
+            └── given the LINK price is not stale
+                ├── it should return true
+                └── it should return the correct swap execution data for the asset

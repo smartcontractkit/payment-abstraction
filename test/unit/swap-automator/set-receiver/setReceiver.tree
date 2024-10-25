@@ -1,0 +1,9 @@
+setReceiver.t.sol
+├── when the caller does not have the DEFAULT_ADMIN_ROLE
+│   └── it should revert
+└── when the caller has the DEFAULT_ADMIN_ROLE
+    ├── when the receiver is set to the zero address
+    │   └── it should revert
+    └── when the receiver is set to a non-zero address
+        ├── it should set the receiver to the given address
+        └── it should emit a LINKReceiverSet event

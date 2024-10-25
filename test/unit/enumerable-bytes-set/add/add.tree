@@ -1,0 +1,11 @@
+add.t.sol
+├─ when adding a non existing value
+│  ├─ it should return true
+│  ├─ it should increment the set length
+│  ├─ it should contain the value
+│  └─ it should equal the new expected set
+└─ when adding an already existing value
+   ├─ it should return false
+   ├─ it should not increment the length
+   ├─ it should still contain the value
+   └─ it should equal the set before the add operation

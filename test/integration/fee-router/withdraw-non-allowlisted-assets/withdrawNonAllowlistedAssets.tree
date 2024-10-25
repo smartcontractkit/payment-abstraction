@@ -1,0 +1,27 @@
+withdrawNonAllowlistedAssets.t.sol
+├── given the contract is not paused
+│   └── it should revert
+└── given the contract is paused
+    ├── when the caller does not have the DEFAULT_ADMIN_ROLE
+    │   └── it should revert
+    └── when the caller has the DEFAULT_ADMIN_ROLE
+        ├── when the length of assets does not match the length of amounts
+        │   └── it should revert
+        └── when the length of assets matches the length of amounts
+            ├── when the asset list is empty
+            │   └── it should revert
+            └── when the asset list is not empty
+                ├─ when the asset list does not have the same length as the amount list
+                │  └─ it should revert
+                └─ when the asset list has the same length as the amount list
+                    ├── when an asset address is equal to the zero address
+                    │   └── it should revert
+                    └── when an asset address is not equal to the zero address
+                        ├── when an asset amount is equal to zero
+                        │   └── it should revert
+                        └── when an asset amount is not equal to zero
+                            ├── when the asset is allowlisted
+                            │   └── it should revert
+                            └── when the asset is not allowlisted
+                                ├── it should transfer the asset amount to the admin
+                                └── it should emit a NonAllowlistedAssetWithdrawn event

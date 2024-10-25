@@ -1,0 +1,14 @@
+removeAllowlistedReceivers
+├── when the caller does not have the DEFAULT_ADMIN_ROLE
+│   └── it should revert
+└── when the caller has the DEFAULT_ADMIN_ROLE
+    ├── when the list of receivers to remove is empty
+    │   └── it should revert
+    ├── when the receiver to remove is not on the allowlist
+    │   └── it should revert
+    ├── when the receiver is in the allowlist
+    │   ├── it should remove the receiver from the allowlist
+    │   └── it should emit an SenderRemovedFromAllowlist event
+    └── when there are no more receivers in the allowlist
+        ├── it should remove the source chain from the allowlist
+        └── it should emit an DestinationChainRemovedFromAllowlist event

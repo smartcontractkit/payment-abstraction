@@ -1,0 +1,18 @@
+addAllowListedSenders.t.sol
+├── when the caller does not have the DEFAULT_ADMIN_ROLE
+│   └── it should revert
+└── when the caller has the DEFAULT_ADMIN_ROLE
+    ├── given the contract is paused
+    │   └── it should revert
+    └── given the contract is not paused
+        ├── when the added senders list is empty
+        │   └── it should revert
+        └── when the added senders list is not empty
+            ├── when the sender is already allowlisted
+            │   └── it should revert
+            ├── when the sender is not already allowlisted
+            │   ├── it should add the sender to the allow list
+            │   └── it should emit an SenderAllowlisted event
+            └── when the source chain is not allowlisted
+                ├── it should add the source chain to the allowlist
+                └── it should emit a SourceChainAllowlisted event

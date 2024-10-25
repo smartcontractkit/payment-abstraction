@@ -1,0 +1,10 @@
+removeAllowlistedAssets.t.sol
+└── when the caller has the ASSET_ADMIN_ROLE
+    ├── when the list of assets to remove is empty
+    │   └── it should revert
+    ├── when the asset to remove is not on the allowlist
+    │   └── it should revert
+    └── when the asset is in the allowlist
+        ├── it should remove the asset from the allowlist
+        ├── it should delete the asset swap parameters
+        └── it should emit an AssetRemovedFromAllowlist event

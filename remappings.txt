@@ -1,0 +1,9 @@
+@aave/=src/vendor/@aave/
+@chainlink/=src/vendor/@chainlink/
+@openzeppelin/=src/vendor/@openzeppelin/
+@uniswap/=src/vendor/@uniswap/
+ds-test/=lib/forge-std/lib/ds-test/src/
+forge-std/=lib/forge-std/src/
+src/=src/
+test/=test/
+script/=script/

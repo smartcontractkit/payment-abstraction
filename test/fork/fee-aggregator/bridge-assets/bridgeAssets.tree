@@ -1,0 +1,15 @@
+bridgeAssets.t.sol
+├── given the contract is paused
+│   └── it should revert
+└── given the contract is not paused
+    ├── when caller does not have the BRIDGER_ROLE
+    │   └── it should revert
+    └── when the caller does have the BRIDGER_ROLE
+        ├── when the contract does not have enough LINK to cover the fee to bridge
+        │   └── it should revert
+        └── when the contract has enough LINK to cover the fee to bridge
+            ├── when an asset not on the allowlist is being bridged
+            │   └── it should revert
+            └── when an asset on the allowlist is being bridged
+                ├── it should send to the correct destination chain
+                └── it should send the correct cross chain message

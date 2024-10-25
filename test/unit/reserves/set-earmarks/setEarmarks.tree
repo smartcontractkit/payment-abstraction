@@ -1,0 +1,11 @@
+setEarmarks.t.sol
+├── when the caller does not have the EARMARK_MANAGER_ROLE
+│   └── it should revert
+└── when the caller has the EARMARK_MANAGER_ROLE
+    ├── when the earmark list to set is empty
+    │   └── it should revert
+    └── when the earmark list to set is not empty
+        ├── when the total earmark amount is greater than the reserve balance
+        │   └── it should revert
+        ├── it should set the earmark
+        └── it should emit an EarmarkSet event
