@@ -93,7 +93,7 @@ contract ConstructorUnitTests is BaseUnitTest {
 
   function test_constructor_RevertWhen_DeadlineDelayLtMinThreshold() public {
     vm.expectRevert(
-      abi.encodeWithSelector(Errors.DeadlineDelayTooLow.selector, MIN_DEADLINE_DELAY - 1, MIN_DEADLINE_DELAY)
+      abi.encodeWithSelector(SwapAutomator.DeadlineDelayTooLow.selector, MIN_DEADLINE_DELAY - 1, MIN_DEADLINE_DELAY)
     );
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
@@ -112,7 +112,7 @@ contract ConstructorUnitTests is BaseUnitTest {
 
   function test_constructor_RevertWhen_DeadlineDealyGtMaxThreshold() public {
     vm.expectRevert(
-      abi.encodeWithSelector(Errors.DeadlineDelayTooHigh.selector, MAX_DEADLINE_DELAY + 1, MAX_DEADLINE_DELAY)
+      abi.encodeWithSelector(SwapAutomator.DeadlineDelayTooHigh.selector, MAX_DEADLINE_DELAY + 1, MAX_DEADLINE_DELAY)
     );
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
@@ -154,7 +154,7 @@ contract ConstructorUnitTests is BaseUnitTest {
     vm.expectEmit();
     emit SwapAutomator.LinkReceiverSet(RECEIVER);
     vm.expectEmit();
-    emit SwapAutomator.LINKTokenSet(MOCK_LINK);
+    emit SwapAutomator.LinkTokenSet(MOCK_LINK);
     vm.expectEmit();
     emit SwapAutomator.LINKUsdFeedSet(MOCK_LINK_USD_FEED);
     vm.expectEmit();
@@ -175,7 +175,7 @@ contract ConstructorUnitTests is BaseUnitTest {
         linkReceiver: RECEIVER
       })
     );
-    assertEq(address(s_swapAutomator.getLINK()), MOCK_LINK);
+    assertEq(address(s_swapAutomator.getLinkToken()), MOCK_LINK);
     assertEq(address(s_swapAutomator.getLINKUsdFeed()), MOCK_LINK_USD_FEED);
     assertEq(address(s_swapAutomator.getFeeAggregator()), address(s_feeAggregatorReceiver));
     assertEq(address(s_swapAutomator.getUniswapRouter()), MOCK_UNISWAP_ROUTER);

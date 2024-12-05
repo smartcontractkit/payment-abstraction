@@ -32,16 +32,16 @@ contract FeeRouter_TransferAllowlistedAssetsIntegrationTest is BaseIntegrationTe
     address[] memory allowlistedAssets = new address[](2);
     allowlistedAssets[0] = address(s_mockWETH);
     allowlistedAssets[1] = address(s_mockLINK);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(new address[](0), allowlistedAssets);
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), allowlistedAssets);
 
     _changePrank(BRIDGER);
   }
 
   function test_transferAllowlistedAssets_MultipleTokens() public {
     vm.expectEmit(address(s_feeRouter));
-    emit EmergencyWithdrawer.AssetTransferred(address(s_feeAggregatorReceiver), address(s_mockWETH), 1 ether);
+    emit FeeRouter.AssetTransferred(address(s_feeAggregatorReceiver), address(s_mockWETH), 1 ether);
     vm.expectEmit(address(s_feeRouter));
-    emit EmergencyWithdrawer.AssetTransferred(address(s_feeAggregatorReceiver), address(s_mockLINK), 1 ether);
+    emit FeeRouter.AssetTransferred(address(s_feeAggregatorReceiver), address(s_mockLINK), 1 ether);
 
     s_feeRouter.transferAllowlistedAssets(s_assets, s_amounts);
 
@@ -79,7 +79,7 @@ contract FeeRouter_TransferAllowlistedAssetsIntegrationTest is BaseIntegrationTe
     _changePrank(ASSET_ADMIN);
     address[] memory allowlistedAssets = new address[](1);
     allowlistedAssets[0] = address(s_mockWETH);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(allowlistedAssets, new address[](0));
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(allowlistedAssets, new address[](0));
 
     _changePrank(BRIDGER);
     vm.expectRevert(abi.encodeWithSelector(Errors.AssetNotAllowlisted.selector, address(s_mockWETH)));

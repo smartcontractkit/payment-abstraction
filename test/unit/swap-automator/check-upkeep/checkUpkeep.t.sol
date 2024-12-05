@@ -117,6 +117,24 @@ contract CheckUpkeepUnitTest is BaseUnitTest {
     _;
   }
 
+  /**
+   * Modifier for mocking the asset balance to exceed the maxSwapSizeUsd.
+   */
+  modifier givenAssetBalanceExceedingMaxSwapSize(
+    address asset
+  ) {
+    SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(asset);
+    uint256 assetBalance =
+      (swapParams.maxSwapSizeUsd * 10 ** IERC20Metadata(asset).decimals()) / _getAssetPrice(swapParams.oracle);
+
+    vm.mockCall(
+      asset,
+      abi.encodeWithSelector(IERC20.balanceOf.selector, address(s_feeAggregatorReceiver)),
+      abi.encode(assetBalance)
+    );
+    _;
+  }
+
   function setUp() public {
     address[] memory assets = new address[](2);
     SwapAutomator.SwapParams[] memory swapParams = new SwapAutomator.SwapParams[](2);
@@ -142,7 +160,7 @@ contract CheckUpkeepUnitTest is BaseUnitTest {
     });
 
     _changePrank(ASSET_ADMIN);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(new address[](0), assets);
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), assets);
     s_swapAutomator.applyAssetSwapParamsUpdates(
       new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: assets, assetsSwapParams: swapParams})
     );
@@ -226,7 +244,7 @@ contract CheckUpkeepUnitTest is BaseUnitTest {
     // add invalid asset to allowlist on the receiver
     address[] memory assets = new address[](1);
     assets[0] = INVALID_ASSET;
-    s_feeAggregatorReceiver.applyAllowlistedAssets(new address[](0), assets);
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), assets);
 
     (bool upkeepNeeded, bytes memory performData) = _checkUpkeepWithSimulation();
     IV3SwapRouter.ExactInputParams[] memory swapInputs = abi.decode(performData, (IV3SwapRouter.ExactInputParams[]));
@@ -448,6 +466,31 @@ contract CheckUpkeepUnitTest is BaseUnitTest {
   {
     (bool upkeepNeeded,) = _checkUpkeepWithSimulation();
     assertFalse(upkeepNeeded);
+  }
+
+  /**
+   * Test checkUpkeep when asset's USD value exceeds the maxSwapSizeUsd.
+   * Expected: swapAmountIn should be limited to maxSwapSizeUsd converted to asset amount.
+   */
+  function test_checkUpkeep_WhenAssetUsdValueExceedsMaxSwapSize()
+    public
+    givenAssetBalanceExceedingMaxSwapSize(ASSET_1)
+    givenAssetInsufficientBalanceForSwap(ASSET_2)
+  {
+    (bool upkeepNeeded, bytes memory performData) = _checkUpkeepWithSimulation();
+    assertTrue(upkeepNeeded);
+
+    IV3SwapRouter.ExactInputParams[] memory swapInputs = abi.decode(performData, (IV3SwapRouter.ExactInputParams[]));
+
+    assertEq(swapInputs.length, 1);
+
+    SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(ASSET_1);
+    uint256 assetUnit = 10 ** IERC20Metadata(ASSET_1).decimals();
+    uint256 assetPrice = uint256(ASSET_1_USD_PRICE);
+
+    uint256 expectedAmountIn = (swapParams.maxSwapSizeUsd * assetUnit) / assetPrice;
+
+    assertEq(swapInputs[0].amountIn, expectedAmountIn);
   }
 
   function _checkUpkeepWithSimulation() internal returns (bool, bytes memory) {

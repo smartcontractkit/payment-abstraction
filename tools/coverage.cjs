@@ -3,7 +3,7 @@ const ignore = require("./coverage.ignore.json");
 
 parse("./lcov.info", function(err, data) {
   data.forEach(({ file, branches, functions, lines }) => {
-    if (file.startsWith("script")) return;
+    if (file.startsWith("script") || file.startsWith("test")) return;
 
     console.log(`Analyzing coverage for ${file}`);
 

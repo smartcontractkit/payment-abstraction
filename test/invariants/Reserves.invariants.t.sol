@@ -22,11 +22,25 @@ contract ReservesInvariant is BaseInvariant {
     int96 totalEarmarked = s_reservesHandler.getTotalEarmarked();
     uint256 totalWithdrawn = s_reservesHandler.getTotalWithdrawn();
 
-    assertEq(s_reserves.getTotalLinkAmountOwed(), totalEarmarked);
     assertEq(
       int256(totalEarmarked) + totalWithdrawn.toInt256(),
       serviceProvidersTotalLINKBalance.toInt256() + serviceProvidersFinalAmountOwed
     );
+  }
+
+  function invariant_TotalLinkAmountOwedEqualsSumOfPositiveBalances() public {
+    address[] memory serviceProviders = s_reservesHandler.getServiceProviders();
+    uint256 sumOfPositiveBalances;
+    for (uint256 i; i < serviceProviders.length; ++i) {
+      int96 linkBalance = s_reserves.getServiceProvider(serviceProviders[i]).linkBalance;
+      if (linkBalance > 0) {
+        sumOfPositiveBalances += uint256(int256(linkBalance));
+      }
+    }
+
+    uint256 totalLinkAmountOwed = s_reserves.getTotalLinkAmountOwed();
+
+    assertEq(totalLinkAmountOwed, sumOfPositiveBalances);
   }
 
   // added to be excluded from coverage report

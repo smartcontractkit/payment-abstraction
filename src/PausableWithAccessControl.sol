@@ -61,10 +61,10 @@ abstract contract PausableWithAccessControl is
 
   /// @notice This function returns the members of a role
   /// @param role The role to get the members of
-  /// @return The members of the role
+  /// @return roleMembers members of the role
   function getRoleMembers(
     bytes32 role
-  ) public view virtual returns (address[] memory) {
+  ) public view virtual returns (address[] memory roleMembers) {
     return s_roleMembers[role].values();
   }
 

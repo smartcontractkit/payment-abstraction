@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
+/// @notice Library for payment abstraction contract roles IDs to use with the OpenZeppelin AccessControl contracts.
 library Roles {
   /// @notice This is the ID for the pauser role, which is given to the addresses that can pause and
   /// the contract.
@@ -8,12 +9,12 @@ library Roles {
   bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
   /// @notice This is the ID for the unpauser role, which is given to the addresses that can unpause
   /// the contract.
-  /// @dev Hash: 0x27da25fe773164f88948d3e215c94b6554e2ed5e5f203a821c9f2f6131cf75a
+  /// @dev Hash: 0x427da25fe773164f88948d3e215c94b6554e2ed5e5f203a821c9f2f6131cf75a
   bytes32 public constant UNPAUSER_ROLE = keccak256("UNPAUSER_ROLE");
   /// @notice This is the ID for the asset admin role, which is given to the addresses that can:
   /// - Add and remove assets from the allowlist
   /// - Set the swap parameters for an asset
-  /// @dev Hash: 0xb1fadd3142ab2ad7f1337ea4d97112bcc8337fc11ce5b20cb04ad038adf99819
+  /// @dev Hash: 0x5e608239aadc5f1e750186f22bbac828160fb6191c4a7b9eee6b9432b1eac59e
   bytes32 public constant ASSET_ADMIN_ROLE = keccak256("ASSET_ADMIN_ROLE");
   /// @notice This is the ID for the bridger role, which is given to addresses that are able to
   /// bridge assets

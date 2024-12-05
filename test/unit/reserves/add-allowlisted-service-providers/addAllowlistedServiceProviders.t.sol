@@ -24,6 +24,17 @@ contract Reserves_AddAllowlistedServiceProvidersUnitTest is BaseUnitTest {
     s_reserves.addAllowlistedServiceProviders(new address[](0));
   }
 
+  function test_addAllowlistedServiceProviders_RevertWhen_ServiceProviderAddressIsZero() public {
+    _changePrank(EARMARK_MANAGER);
+
+    address[] memory serviceProviders = new address[](2);
+    serviceProviders[0] = s_serviceProviders[0];
+    serviceProviders[1] = address(0);
+
+    vm.expectRevert(Errors.InvalidZeroAddress.selector);
+    s_reserves.addAllowlistedServiceProviders(serviceProviders);
+  }
+
   function test_addAllowlistedServiceProviders_ShouldEmitsServiceProvidersAddedEvent() public {
     _changePrank(EARMARK_MANAGER);
 

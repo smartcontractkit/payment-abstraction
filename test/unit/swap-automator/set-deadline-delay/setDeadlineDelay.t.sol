@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 import {SwapAutomator} from "src/SwapAutomator.sol";
-import {Errors} from "src/libraries/Errors.sol";
 import {Roles} from "src/libraries/Roles.sol";
 import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
 
@@ -23,18 +22,20 @@ contract SetDeadlineDelayUnitTest is BaseUnitTest {
   }
 
   function test_setDeadlineDelay_RevertWhen_NewValueEqOldValue() public {
-    vm.expectRevert(Errors.DeadlineDelayNotUpdated.selector);
+    vm.expectRevert(SwapAutomator.DeadlineDelayNotUpdated.selector);
     s_swapAutomator.setDeadlineDelay(DEADLINE_DELAY);
   }
 
   function test_setDeadlineDelay_RevertWhen_NewValueLtMinThreshold() public {
-    vm.expectRevert(abi.encodeWithSelector(Errors.DeadlineDelayTooLow.selector, DEADLINE_DELAY - 1, DEADLINE_DELAY));
+    vm.expectRevert(
+      abi.encodeWithSelector(SwapAutomator.DeadlineDelayTooLow.selector, DEADLINE_DELAY - 1, DEADLINE_DELAY)
+    );
     s_swapAutomator.setDeadlineDelay(DEADLINE_DELAY - 1);
   }
 
   function test_setDeadlineDelay_RevertWhen_NewValueGtMaxThreshold() public {
     vm.expectRevert(
-      abi.encodeWithSelector(Errors.DeadlineDelayTooHigh.selector, MAX_DEADLINE_DELAY + 1, MAX_DEADLINE_DELAY)
+      abi.encodeWithSelector(SwapAutomator.DeadlineDelayTooHigh.selector, MAX_DEADLINE_DELAY + 1, MAX_DEADLINE_DELAY)
     );
     s_swapAutomator.setDeadlineDelay(MAX_DEADLINE_DELAY + 1);
   }

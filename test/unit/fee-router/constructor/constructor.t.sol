@@ -10,7 +10,9 @@ contract HomeFeeAggregatorSender_ConstructorUnitTest is BaseUnitTest {
     FeeRouter.ConstructorParams memory params = FeeRouter.ConstructorParams({
       adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
       admin: OWNER,
-      feeAggregator: address(s_feeAggregatorReceiver)
+      feeAggregator: address(s_feeAggregatorReceiver),
+      linkToken: MOCK_LINK,
+      wrappedNativeToken: s_mockWrappedNativeToken
     });
 
     vm.expectEmit();
@@ -21,11 +23,26 @@ contract HomeFeeAggregatorSender_ConstructorUnitTest is BaseUnitTest {
     assertEq(feeRouter.typeAndVersion(), "FeeRouter v1.0.0");
   }
 
+  function test_constructor_RevertWhen_LINKAddressIsZero() public {
+    vm.expectRevert(Errors.InvalidZeroAddress.selector);
+    new FeeRouter(
+      FeeRouter.ConstructorParams({
+        adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
+        admin: OWNER,
+        feeAggregator: address(s_feeAggregatorReceiver),
+        linkToken: address(0),
+        wrappedNativeToken: s_mockWrappedNativeToken
+      })
+    );
+  }
+
   function test_constructor_RevertWhen_SetFeeAggregatorReceiverToAddressZero() public {
     FeeRouter.ConstructorParams memory params = FeeRouter.ConstructorParams({
       adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
       admin: OWNER,
-      feeAggregator: address(0)
+      feeAggregator: address(0),
+      linkToken: MOCK_LINK,
+      wrappedNativeToken: s_mockWrappedNativeToken
     });
 
     vm.expectRevert(Errors.InvalidZeroAddress.selector);

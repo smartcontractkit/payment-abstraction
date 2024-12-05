@@ -5,6 +5,8 @@ setEarmarks.t.sol
     ├── when the earmark list to set is empty
     │   └── it should revert
     └── when the earmark list to set is not empty
+        ├── when the a service provider is not allowlisted
+        │   └── it should revert
         ├── when the total earmark amount is greater than the reserve balance
         │   └── it should revert
         ├── it should set the earmark

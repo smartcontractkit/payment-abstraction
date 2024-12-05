@@ -1,0 +1,9 @@
+setWrappedNativeToken.t.sol
+├─ when the caller does not have the DEFAULT_ADMIN_ROLE
+│  └─ it should revert
+└─ when the caller does have the DEFAULT_ADMIN_ROLE
+   ├─ when the new wrapped native token address is the same as the one already set
+   │  └─ it should revert
+   └─ when the new wrapped native token address is not the same as the one already set
+      ├─ it should set the wrapped native token
+      └─ it should emit a WrappedNativeTokenSet event

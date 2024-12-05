@@ -1,5 +1,0 @@
-ccipReceive.t.sol
-└── when receiving LINK
-    ├── it should store LINK in the FeeAggregatorReceiver contract
-    ├── it should emit an AssetReceived event for each asset
-    └── it should emit a MessageReceived event

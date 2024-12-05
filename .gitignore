@@ -3,10 +3,7 @@ cache/
 out/
 
 # Ignores development broadcast logs
-!/broadcast
-/broadcast/*/11155111/
-/broadcast/*/421614/
-/broadcast/**/dry-run/
+/broadcast/
 
 # Docs
 docs/

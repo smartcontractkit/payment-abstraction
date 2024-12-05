@@ -6,4 +6,4 @@ setReceiver.t.sol
     │   └── it should revert
     └── when the receiver is set to a non-zero address
         ├── it should set the receiver to the given address
-        └── it should emit a LINKReceiverSet event
+        └── it should emit a LinkReceiverSet event

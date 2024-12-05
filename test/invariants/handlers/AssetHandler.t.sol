@@ -47,7 +47,7 @@ contract AssetHandler is Constants, Test {
     address[] memory allowlistedAssets = s_feeAggregatorReceiver.getAllowlistedAssets();
     index = uint8(bound(index, 0, allowlistedAssets.length - 1));
     maxSlippage = uint16(bound(maxSlippage, 1, MAX_SLIPPAGE)); // 0.01% to 2%
-    maxPriceDeviation = uint16(bound(maxPriceDeviation, 1, MAX_PRICE_DEVIATION));
+    maxPriceDeviation = uint16(bound(maxPriceDeviation, MAX_SLIPPAGE, MAX_PRICE_DEVIATION)); // maxSlippage to 2%
     minSwapSize = uint128(bound(minSwapSize, MIN_SWAP_SIZE_LOWER_BOUND, MIN_SWAP_SIZE_UPPER_BOUND));
     maxSwapSize = uint128(bound(maxSwapSize, MIN_SWAP_SIZE_UPPER_BOUND, MAX_SWAP_SIZE_UPPER_BOUND));
 

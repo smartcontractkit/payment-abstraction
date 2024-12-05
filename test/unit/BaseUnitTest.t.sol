@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import {FeeAggregator} from "src/FeeAggregator.sol";
+import {FeeRouter} from "src/FeeRouter.sol";
 import {PausableWithAccessControl} from "src/PausableWithAccessControl.sol";
 import {Reserves} from "src/Reserves.sol";
 import {SwapAutomator} from "src/SwapAutomator.sol";
@@ -14,9 +15,12 @@ abstract contract BaseUnitTest is BaseTest {
   SwapAutomator internal s_swapAutomator;
   FeeAggregator internal s_feeAggregatorReceiver;
   FeeAggregator internal s_feeAggregatorSender;
+  FeeRouter internal s_feeRouter;
   Reserves internal s_reserves;
   MockERC20 internal s_mockLINK;
   PausableWithAccessControl internal s_contractUnderTest;
+
+  address internal s_mockWrappedNativeToken = makeAddr("mockWrappedNativeToken");
 
   address[] internal s_serviceProviders;
   address[] internal s_contractsPausableWithAccessControl;
@@ -30,7 +34,8 @@ abstract contract BaseUnitTest is BaseTest {
         admin: OWNER,
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         linkToken: MOCK_LINK,
-        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT
+        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT,
+        wrappedNativeToken: s_mockWrappedNativeToken
       })
     );
 
@@ -39,7 +44,18 @@ abstract contract BaseUnitTest is BaseTest {
         admin: OWNER,
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         linkToken: MOCK_LINK,
-        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT
+        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT,
+        wrappedNativeToken: s_mockWrappedNativeToken
+      })
+    );
+
+    s_feeRouter = new FeeRouter(
+      FeeRouter.ConstructorParams({
+        adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
+        admin: OWNER,
+        feeAggregator: makeAddr("FeeAggregator"),
+        linkToken: MOCK_LINK,
+        wrappedNativeToken: makeAddr("WrappedNativeToken")
       })
     );
 
@@ -100,6 +116,7 @@ abstract contract BaseUnitTest is BaseTest {
 
     vm.label(address(s_feeAggregatorSender), "FeeAggregatorSender");
     vm.label(address(s_feeAggregatorReceiver), "FeeAggregatorReceiver");
+    vm.label(address(s_feeRouter), "FeeRouter");
     vm.label(address(s_swapAutomator), "SwapAutomator");
     vm.label(address(s_reserves), "Reserves");
     vm.label(OWNER, "OWNER");

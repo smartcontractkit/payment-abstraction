@@ -1,0 +1,8 @@
+receive.t.sol
+├─ given the wrapped native token is set
+│  ├─ when a low level call is used
+│  │  └─ it should wrap native tokens on receive
+│  └─ when transfer method is used
+│     └─ it should not wrap native tokens on receive
+└─ given the wrapped native token is set
+   └─ it should not wrap native tokens on receive

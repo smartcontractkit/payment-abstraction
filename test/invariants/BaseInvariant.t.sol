@@ -11,9 +11,10 @@ import {BaseTest} from "test/BaseTest.t.sol";
 import {AssetHandler} from "test/invariants/handlers/AssetHandler.t.sol";
 import {ReservesHandler} from "test/invariants/handlers/ReservesHandler.t.sol";
 import {UpkeepHandler} from "test/invariants/handlers/UpkeepHandler.t.sol";
-import {MockAggregatorV3} from "test/invariants/mocks/MockAggregatorV3.t.sol";
-import {MockUniswapQuoterV2} from "test/invariants/mocks/MockUniswapQuoterV2.t.sol";
-import {MockUniswapRouter} from "test/invariants/mocks/MockUniswapRouter.t.sol";
+import {MockAggregatorV3} from "test/mocks/MockAggregatorV3.sol";
+import {MockUniswapQuoterV2} from "test/mocks/MockUniswapQuoterV2.sol";
+import {MockUniswapRouter} from "test/mocks/MockUniswapRouter.sol";
+import {MockWrappedNative} from "test/mocks/MockWrappedNative.sol";
 
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
 import {StdInvariant} from "forge-std/StdInvariant.sol";
@@ -29,8 +30,8 @@ abstract contract BaseInvariant is StdInvariant, BaseTest {
   ReservesHandler internal s_reservesHandler;
   UpkeepHandler internal s_upkeepHandler;
 
+  MockWrappedNative internal s_mockWeth;
   MockERC20 internal s_mockLink;
-  MockERC20 internal s_mockWeth;
   MockERC20 internal s_mockUsdc;
   MockERC20 internal s_mockHighDecimalToken;
 
@@ -47,7 +48,7 @@ abstract contract BaseInvariant is StdInvariant, BaseTest {
     skip(1 weeks);
 
     s_mockLink = new MockERC20();
-    s_mockWeth = new MockERC20();
+    s_mockWeth = new MockWrappedNative();
     s_mockUsdc = new MockERC20();
     s_mockHighDecimalToken = new MockERC20();
 
@@ -71,7 +72,8 @@ abstract contract BaseInvariant is StdInvariant, BaseTest {
         admin: OWNER,
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         linkToken: address(s_mockLink),
-        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT
+        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT,
+        wrappedNativeToken: address(s_mockWeth)
       })
     );
 
@@ -80,7 +82,8 @@ abstract contract BaseInvariant is StdInvariant, BaseTest {
         admin: OWNER,
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         linkToken: address(s_mockLink),
-        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT
+        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT,
+        wrappedNativeToken: address(s_mockWeth)
       })
     );
 
@@ -169,7 +172,7 @@ abstract contract BaseInvariant is StdInvariant, BaseTest {
     });
 
     _changePrank(ASSET_ADMIN);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(new address[](0), swapAssets);
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), swapAssets);
     s_swapAutomator.applyAssetSwapParamsUpdates(
       new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: swapAssets, assetsSwapParams: swapParams})
     );

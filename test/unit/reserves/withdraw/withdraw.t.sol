@@ -25,7 +25,7 @@ contract Reserves_WithdrawUnitTest is BaseUnitTest {
 
     s_serviceProviders.pop();
     vm.accesses(address(s_reserves));
-    emit Reserves.Withdrawn(s_serviceProviders[0], s_earmarks[0].amountLinkOwed);
+    emit Reserves.Withdrawn(s_serviceProviders[0], uint256(int256(s_earmarks[0].amountLinkOwed)));
 
     s_reserves.withdraw(s_serviceProviders);
 
@@ -38,15 +38,43 @@ contract Reserves_WithdrawUnitTest is BaseUnitTest {
     assertEq(s_mockLINK.balanceOf(address(s_serviceProviders[1])), 0);
 
     vm.accesses(address(s_reserves));
-    emit Reserves.Withdrawn(s_serviceProviders[0], s_earmarks[0].amountLinkOwed);
+    emit Reserves.Withdrawn(s_serviceProviders[0], uint256(int256(s_earmarks[0].amountLinkOwed)));
     vm.accesses(address(s_reserves));
-    emit Reserves.Withdrawn(s_serviceProviders[1], s_earmarks[1].amountLinkOwed);
+    emit Reserves.Withdrawn(s_serviceProviders[1], uint256(int256(s_earmarks[1].amountLinkOwed)));
 
     s_reserves.withdraw(s_serviceProviders);
 
     assertEq(s_mockLINK.balanceOf(address(s_serviceProviders[0])), uint256(uint96(s_earmarks[0].amountLinkOwed)));
     assertEq(s_mockLINK.balanceOf(address(s_serviceProviders[1])), uint256(uint96(s_earmarks[1].amountLinkOwed)));
     assertEq(s_mockLINK.balanceOf(address(s_reserves)), 0);
+  }
+
+  function test_withdraw_AfterNegativeEarmarkCorrection() public {
+    address[] memory serviceProviders = new address[](1);
+    serviceProviders[0] = s_serviceProviders[0];
+    // Bring the balance of the first service provider to 0
+    s_reserves.withdraw(serviceProviders);
+
+    // Check the balance of the service providers
+    assertEq(s_reserves.getServiceProvider(s_serviceProviders[0]).linkBalance, 0);
+    assertEq(s_reserves.getServiceProvider(s_serviceProviders[1]).linkBalance, s_earmarks[1].amountLinkOwed);
+
+    // Add a negative earmark to the first service provider
+    Reserves.Earmark[] memory negativeEarmarks = new Reserves.Earmark[](1);
+    negativeEarmarks[0] = Reserves.Earmark(s_serviceProviders[0], -4e18, "earmarkBytes1");
+    s_reserves.setEarmarks(negativeEarmarks);
+
+    // Check the balance of the service providers
+    assertEq(s_reserves.getServiceProvider(s_serviceProviders[0]).linkBalance, -4e18);
+    assertEq(s_reserves.getServiceProvider(s_serviceProviders[1]).linkBalance, s_earmarks[1].amountLinkOwed);
+
+    // Withdraw should be successful for second provider
+    serviceProviders[0] = s_serviceProviders[1];
+    s_reserves.withdraw(serviceProviders);
+
+    // Check the balance of the service providers
+    assertEq(s_reserves.getServiceProvider(s_serviceProviders[0]).linkBalance, -4e18);
+    assertEq(s_reserves.getServiceProvider(s_serviceProviders[1]).linkBalance, 0);
   }
 
   function test_withdraw_RevertWhen_EmptyServiceProviderList() public {

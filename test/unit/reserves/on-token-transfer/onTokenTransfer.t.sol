@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
+import {LinkReceiver} from "src/LinkReceiver.sol";
 import {Reserves} from "src/Reserves.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
@@ -22,7 +23,7 @@ contract Reserves_OnTokenTransferUnitTest is BaseUnitTest {
   }
 
   function test_onTokenTransfer_RevertWhen_TheSenderIsNotTheLINKToken() external {
-    vm.expectRevert(Errors.SenderNotLinkToken.selector);
+    vm.expectRevert(LinkReceiver.SenderNotLinkToken.selector);
     s_reserves.onTokenTransfer(address(0), 0, "");
   }
 

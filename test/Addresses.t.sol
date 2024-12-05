@@ -12,10 +12,12 @@ abstract contract Mainnet {
   address internal constant UNISWAP_ROUTER = 0x68b3465833fb72A70ecDF485E0e4C7bD8665Fc45;
   address internal constant UNISWAP_QUOTER_V2 = 0x61fFE014bA17989E743c5F6cB21bF9697530B21e;
   address internal constant USDT = 0xdAC17F958D2ee523a2206206994597C13D831ec7;
+  // address internal constant MATIC = 0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0;
   address internal constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
   address internal constant WBTC = 0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599;
   address internal constant DAI_USD_FEED = 0xAed0c38402a5d19df6E4c03F4E2DceD6e29c1ee9;
   address internal constant USDT_USD_FEED = 0x3E7d1eAB13ad0104d2750B8863b489D65364e32D;
   address internal constant WBTC_USD_FEED = 0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c;
+  address internal constant MATIC_USD_FEED = 0x7bAC85A8a13A4BcD8abb3eB7d6b4d632c5a57676;
   address internal constant WST_LINK = 0x911D86C72155c33993d594B0Ec7E6206B4C803da;
 }

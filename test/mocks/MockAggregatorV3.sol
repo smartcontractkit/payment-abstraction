@@ -2,11 +2,10 @@
 pragma solidity 0.8.24;
 
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
-import {Test} from "forge-std/Test.sol";
 
 /// @title This contracts is used to mock the Chainlink AggregatorV3 contract and allow transmitting
 /// new answers
-contract MockAggregatorV3 is Test, AggregatorV3Interface {
+contract MockAggregatorV3 is AggregatorV3Interface {
   int256 private s_latestAnswer;
   uint256 private s_latestTimestamp;
   uint256 private s_latestRound;

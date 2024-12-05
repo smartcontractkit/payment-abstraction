@@ -10,6 +10,8 @@ bridgeAssets.t.sol
         └── when the contract has enough LINK to cover the fee to bridge
             ├── when an asset not on the allowlist is being bridged
             │   └── it should revert
+            ├── when the bridged asset list is empty
+            │   └── it should revert
             └── when an asset on the allowlist is being bridged
                 ├── it should send to the correct destination chain
                 └── it should send the correct cross chain message

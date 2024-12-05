@@ -3,26 +3,12 @@ pragma solidity 0.8.24;
 
 import {FeeRouter} from "src/FeeRouter.sol";
 import {Errors} from "src/libraries/Errors.sol";
-import {BaseTest} from "test/BaseTest.t.sol";
+import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
-contract FeeRouter_SetFeeAggregatorUnitTest is BaseTest {
-  FeeRouter private s_feeRouter;
-
-  function setUp() public {
-    s_feeRouter = new FeeRouter(
-      FeeRouter.ConstructorParams({
-        adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
-        feeAggregator: makeAddr("FeeAggregator")
-      })
-    );
-
-    vm.label(address(s_feeRouter), "FeeRouter");
-  }
-
+contract FeeRouter_SetFeeAggregatorUnitTest is BaseUnitTest {
   function test_setFeeAggregator_RevertWhen_CallerDoesNotHaveDEFAULT_ADMIN_ROLE() public whenCallerIsNotAdmin {
     vm.expectRevert(
       abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, NON_OWNER, DEFAULT_ADMIN_ROLE)

@@ -48,10 +48,13 @@ contract BridgeAssetsForkTest is BaseForkTest {
 
     s_receiverAddresses.push(abi.encodePacked(RECEIVER));
     s_receiversToAllowlist.push(
-      FeeAggregator.AllowlistedReceivers({destChainSelector: DESTINATION_CHAIN_SELECTOR, receivers: s_receiverAddresses})
+      FeeAggregator.AllowlistedReceivers({
+        remoteChainSelector: DESTINATION_CHAIN_SELECTOR,
+        receivers: s_receiverAddresses
+      })
     );
     FeeAggregator.AllowlistedReceivers[] memory emptyReceivers = new FeeAggregator.AllowlistedReceivers[](0);
-    s_feeAggregatorSender.applyAllowlistedReceivers(emptyReceivers, s_receiversToAllowlist);
+    s_feeAggregatorSender.applyAllowlistedReceiverUpdates(emptyReceivers, s_receiversToAllowlist);
 
     // Grant BRIDGER_ROLE to BRIDGER account
     bytes32 bridgerRole = Roles.BRIDGER_ROLE;
@@ -67,7 +70,7 @@ contract BridgeAssetsForkTest is BaseForkTest {
     bytes memory extraArgs = _encodeExtraArgs(DESTINATION_CHAIN_GAS_LIMIT);
     vm.expectRevert(Pausable.EnforcedPause.selector);
     s_feeAggregatorSender.bridgeAssets(
-      s_bridgeAssetAmounts, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(RECEIVER), bytes("test-message"), extraArgs
+      s_bridgeAssetAmounts, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(RECEIVER), extraArgs
     );
   }
 
@@ -78,7 +81,7 @@ contract BridgeAssetsForkTest is BaseForkTest {
       abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, OWNER, Roles.BRIDGER_ROLE)
     );
     s_feeAggregatorSender.bridgeAssets(
-      s_bridgeAssetAmounts, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(RECEIVER), bytes("test-message"), extraArgs
+      s_bridgeAssetAmounts, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(RECEIVER), extraArgs
     );
   }
 
@@ -87,7 +90,7 @@ contract BridgeAssetsForkTest is BaseForkTest {
     bytes memory extraArgs = _encodeExtraArgs(DESTINATION_CHAIN_GAS_LIMIT);
     vm.expectRevert(abi.encodeWithSelector(Errors.AssetNotAllowlisted.selector, INVALID_ASSET));
     s_feeAggregatorSender.bridgeAssets(
-      s_bridgeAssetAmounts, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(RECEIVER), bytes("test-message"), extraArgs
+      s_bridgeAssetAmounts, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(RECEIVER), extraArgs
     );
   }
 
@@ -96,11 +99,11 @@ contract BridgeAssetsForkTest is BaseForkTest {
     vm.mockCall(CCIP_ROUTER, abi.encodeWithSelector(IRouterClient.getFee.selector), abi.encode(BRIDGING_FEE));
     vm.expectRevert(
       abi.encodeWithSelector(
-        Errors.InsufficientBalance.selector, IERC20(LINK).balanceOf(address(s_feeAggregatorSender)), BRIDGING_FEE
+        FeeAggregator.InsufficientBalance.selector, IERC20(LINK).balanceOf(address(s_feeAggregatorSender)), BRIDGING_FEE
       )
     );
     s_feeAggregatorSender.bridgeAssets(
-      s_bridgeAssetAmounts, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(RECEIVER), bytes("test-message"), extraArgs
+      s_bridgeAssetAmounts, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(RECEIVER), extraArgs
     );
   }
 
@@ -110,7 +113,6 @@ contract BridgeAssetsForkTest is BaseForkTest {
 
     uint64 destinationChainSelector = DESTINATION_CHAIN_SELECTOR;
     bytes memory bridgeReceiver = abi.encodePacked(address(s_feeAggregatorReceiver));
-    bytes memory data = bytes("test-message");
     bytes memory extraArgs = _encodeExtraArgs(DESTINATION_CHAIN_GAS_LIMIT);
 
     Client.EVMTokenAmount[] memory bridgeAssetAmounts = new Client.EVMTokenAmount[](s_bridgeAssetAmounts.length);
@@ -123,7 +125,20 @@ contract BridgeAssetsForkTest is BaseForkTest {
     vm.expectCall(USDC, abi.encodeWithSelector(IERC20.approve.selector, CCIP_ROUTER, bridgeAssetAmounts[0].amount));
 
     _changePrank(BRIDGER);
-    s_feeAggregatorSender.bridgeAssets(bridgeAssetAmounts, destinationChainSelector, bridgeReceiver, data, extraArgs);
+
+    vm.expectEmit(address(s_feeAggregatorSender));
+    emit FeeAggregator.BridgeAssetsMessageSent(
+      bytes32(0x0),
+      Client.EVM2AnyMessage({
+        receiver: bridgeReceiver,
+        data: "",
+        tokenAmounts: bridgeAssetAmounts,
+        extraArgs: extraArgs,
+        feeToken: LINK
+      })
+    );
+
+    s_feeAggregatorSender.bridgeAssets(bridgeAssetAmounts, destinationChainSelector, bridgeReceiver, extraArgs);
   }
 
   function test_bridgeAssets_AllAbts() public {
@@ -144,11 +159,23 @@ contract BridgeAssetsForkTest is BaseForkTest {
     // reverts because not all ABTs are supported on the same chain
     vm.mockCall(CCIP_ROUTER, abi.encodeWithSelector(IRouterClient.getFee.selector), abi.encode(BRIDGING_FEE));
     vm.mockCall(CCIP_ROUTER, abi.encodeWithSelector(IRouterClient.ccipSend.selector), abi.encode(true));
+
+    vm.expectEmit(address(s_feeAggregatorSender));
+    emit FeeAggregator.BridgeAssetsMessageSent(
+      bytes32(abi.encode(true)),
+      Client.EVM2AnyMessage({
+        receiver: abi.encodePacked(RECEIVER),
+        data: "",
+        tokenAmounts: bridgeAssetAmounts,
+        extraArgs: _encodeExtraArgs(DESTINATION_CHAIN_GAS_LIMIT),
+        feeToken: LINK
+      })
+    );
+
     s_feeAggregatorSender.bridgeAssets(
       bridgeAssetAmounts,
       DESTINATION_CHAIN_SELECTOR,
       abi.encodePacked(RECEIVER),
-      "",
       _encodeExtraArgs(DESTINATION_CHAIN_GAS_LIMIT)
     );
   }
@@ -157,25 +184,35 @@ contract BridgeAssetsForkTest is BaseForkTest {
     bytes memory extraArgs = _encodeExtraArgs(DESTINATION_CHAIN_GAS_LIMIT);
     vm.expectRevert(
       abi.encodeWithSelector(
-        Errors.ReceiverNotAllowlisted.selector, INVALID_DESTINATION_CHAIN, abi.encodePacked(RECEIVER)
+        FeeAggregator.ReceiverNotAllowlisted.selector, INVALID_DESTINATION_CHAIN, abi.encodePacked(RECEIVER)
       )
     );
     s_feeAggregatorSender.bridgeAssets(
-      s_bridgeAssetAmounts, INVALID_DESTINATION_CHAIN, abi.encodePacked(RECEIVER), bytes("test-message"), extraArgs
+      s_bridgeAssetAmounts, INVALID_DESTINATION_CHAIN, abi.encodePacked(RECEIVER), extraArgs
     );
 
     address invalidReceiver = address(0);
     vm.expectRevert(
       abi.encodeWithSelector(
-        Errors.ReceiverNotAllowlisted.selector, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(invalidReceiver)
+        FeeAggregator.ReceiverNotAllowlisted.selector, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(invalidReceiver)
       )
     );
     s_feeAggregatorSender.bridgeAssets(
-      s_bridgeAssetAmounts,
+      s_bridgeAssetAmounts, DESTINATION_CHAIN_SELECTOR, abi.encodePacked(invalidReceiver), extraArgs
+    );
+  }
+
+  function test_bridgeAssets_RevertWhen_BridgedAssetListIsEmpty() public {
+    _deal(LINK, address(s_feeAggregatorSender), BRIDGING_FEE);
+
+    Client.EVMTokenAmount[] memory bridgeAssetAmounts = new Client.EVMTokenAmount[](0);
+
+    vm.expectRevert(Errors.EmptyList.selector);
+    s_feeAggregatorSender.bridgeAssets(
+      bridgeAssetAmounts,
       DESTINATION_CHAIN_SELECTOR,
-      abi.encodePacked(invalidReceiver),
-      bytes("test-message"),
-      extraArgs
+      abi.encodePacked(RECEIVER),
+      _encodeExtraArgs(DESTINATION_CHAIN_GAS_LIMIT)
     );
   }
 

@@ -18,14 +18,14 @@ contract RemoveAllowlistAssetsUnitTest is BaseUnitTest {
     s_assets.push(ASSET_2);
 
     _changePrank(ASSET_ADMIN);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(new address[](0), s_assets);
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), s_assets);
   }
 
   function test_removeAllowlistedAssets_RevertWhen_AssetIsNotAlreadyAllowlisted() public {
     address[] memory assetsToRemove = new address[](1);
     assetsToRemove[0] = INVALID_ASSET;
     vm.expectRevert(abi.encodeWithSelector(Errors.AssetNotAllowlisted.selector, INVALID_ASSET));
-    s_feeAggregatorReceiver.applyAllowlistedAssets(assetsToRemove, new address[](0));
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(assetsToRemove, new address[](0));
   }
 
   function test_removeAllowlistedAssets_SingleAsset() external {
@@ -33,7 +33,7 @@ contract RemoveAllowlistAssetsUnitTest is BaseUnitTest {
     assets[0] = ASSET_1;
     vm.expectEmit(address(s_feeAggregatorReceiver));
     emit FeeAggregator.AssetRemovedFromAllowlist(ASSET_1);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(assets, new address[](0));
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(assets, new address[](0));
 
     address[] memory allowlistedAssets = s_feeAggregatorReceiver.getAllowlistedAssets();
     (bool areAssetsAllowlisted, address asset) = s_feeAggregatorSender.areAssetsAllowlisted(assets);
@@ -49,7 +49,7 @@ contract RemoveAllowlistAssetsUnitTest is BaseUnitTest {
     emit FeeAggregator.AssetRemovedFromAllowlist(ASSET_1);
     vm.expectEmit(address(s_feeAggregatorReceiver));
     emit FeeAggregator.AssetRemovedFromAllowlist(ASSET_2);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(s_assets, new address[](0));
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(s_assets, new address[](0));
 
     address[] memory allowlistedAssets = s_feeAggregatorReceiver.getAllowlistedAssets();
     (bool areAssetsAllowlisted, address asset) = s_feeAggregatorSender.areAssetsAllowlisted(s_assets);

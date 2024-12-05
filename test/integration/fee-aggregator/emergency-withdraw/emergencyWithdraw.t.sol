@@ -12,12 +12,6 @@ contract FeeAggregator_EmergencyWithdrawIntegrationTest is BaseIntegrationTest {
   address[] private s_assets;
   uint256[] private s_amounts;
 
-  modifier givenContractIsNotPaused() {
-    _changePrank(UNPAUSER);
-    s_feeAggregatorReceiver.emergencyUnpause();
-    _;
-  }
-
   function setUp() public {
     deal(address(s_mockWETH), address(s_feeAggregatorReceiver), 1 ether);
     deal(address(s_mockUSDC), address(s_feeAggregatorReceiver), 1000e6);
@@ -32,7 +26,10 @@ contract FeeAggregator_EmergencyWithdrawIntegrationTest is BaseIntegrationTest {
     _changePrank(OWNER);
   }
 
-  function test_emergencyWithdraw_RevertWhen_ContractIsNotPaused() public givenContractIsNotPaused {
+  function test_emergencyWithdraw_RevertWhen_ContractIsNotPaused()
+    public
+    givenContractIsNotPaused(address(s_feeAggregatorReceiver))
+  {
     vm.expectRevert(Pausable.ExpectedPause.selector);
     s_feeAggregatorReceiver.emergencyWithdraw(OWNER, s_assets, s_amounts);
   }
@@ -66,7 +63,7 @@ contract FeeAggregator_EmergencyWithdrawIntegrationTest is BaseIntegrationTest {
     s_amounts.pop();
 
     vm.expectEmit(address(s_feeAggregatorReceiver));
-    emit EmergencyWithdrawer.AssetTransferred(OWNER, s_assets[0], s_amounts[0]);
+    emit EmergencyWithdrawer.AssetEmergencyWithdrawn(OWNER, s_assets[0], s_amounts[0]);
 
     s_feeAggregatorReceiver.emergencyWithdraw(OWNER, s_assets, s_amounts);
 
@@ -76,9 +73,9 @@ contract FeeAggregator_EmergencyWithdrawIntegrationTest is BaseIntegrationTest {
 
   function test_emergencyWithdraw_MultipleAssets() public {
     vm.expectEmit(address(s_feeAggregatorReceiver));
-    emit EmergencyWithdrawer.AssetTransferred(OWNER, s_assets[0], s_amounts[0]);
+    emit EmergencyWithdrawer.AssetEmergencyWithdrawn(OWNER, s_assets[0], s_amounts[0]);
     vm.expectEmit(address(s_feeAggregatorReceiver));
-    emit EmergencyWithdrawer.AssetTransferred(OWNER, s_assets[1], s_amounts[1]);
+    emit EmergencyWithdrawer.AssetEmergencyWithdrawn(OWNER, s_assets[1], s_amounts[1]);
 
     s_feeAggregatorReceiver.emergencyWithdraw(OWNER, s_assets, s_amounts);
 

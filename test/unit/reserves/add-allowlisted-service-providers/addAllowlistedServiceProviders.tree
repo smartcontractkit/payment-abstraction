@@ -5,6 +5,8 @@ addAllowlistedServiceProviders.t.sol
     ├── when the added service providers list is empty
     │   └── it should revert
     └── when the added service providers list is not empty
+        ├── when a service provider address is 0
+        │   └── it should revert
         ├── when the service provider is already allowlisted
         │   └── it should continue with the next service provider
         ├── when the service provider is not already allowlisted

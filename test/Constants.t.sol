@@ -52,7 +52,7 @@ abstract contract Constants {
   uint128 internal constant MAX_SWAP_SIZE = 100_000e8;
   uint64 internal constant MAX_GAS_PRICE = 100 gwei;
   uint16 internal constant MAX_PRICE_DEVIATION = 200;
-  uint16 internal constant MAX_PRICE_DEVIATION_INVARIANTS = 100;
+  uint16 internal constant MAX_PRICE_DEVIATION_INVARIANTS = 200;
   uint24 internal constant UNI_POOL_FEE = 3000;
   uint96 internal constant DEADLINE_DELAY = 1 minutes;
   uint96 internal constant MIN_DEADLINE_DELAY = 1 minutes;

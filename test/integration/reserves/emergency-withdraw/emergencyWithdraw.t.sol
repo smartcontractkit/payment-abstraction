@@ -59,7 +59,7 @@ contract Reserves_EmergencyWithdrawUnitTest is BaseIntegrationTest {
     uint256 balanceBefore = s_mockLINK.balanceOf(OWNER);
 
     vm.expectEmit(address(s_reserves));
-    emit EmergencyWithdrawer.AssetTransferred(OWNER, address(s_mockLINK), FEE_RESERVE_INITIAL_LINK_BALANCE);
+    emit EmergencyWithdrawer.AssetEmergencyWithdrawn(OWNER, address(s_mockLINK), FEE_RESERVE_INITIAL_LINK_BALANCE);
     s_reserves.emergencyWithdraw(OWNER, s_assets, s_amounts);
 
     assertEq(s_mockLINK.balanceOf(OWNER), balanceBefore + FEE_RESERVE_INITIAL_LINK_BALANCE);

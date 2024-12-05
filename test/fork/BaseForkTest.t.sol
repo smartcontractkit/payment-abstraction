@@ -14,26 +14,23 @@ import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/Ag
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 abstract contract BaseForkTest is BaseTest, Mainnet {
+  uint256 private constant FORK_BLOCK = 20935485;
+
   FeeAggregator internal s_feeAggregatorReceiver;
   FeeAggregator internal s_feeAggregatorSender;
   SwapAutomator internal s_swapAutomator;
   SwapAutomator internal s_swapAutomatorSender;
 
   constructor() {
-    vm.createSelectFork("mainnet");
-
-    uint256 blockNumber = vm.envOr("ETHEREUM_FORK_BLOCK_NUMBER", uint256(0));
-
-    if (blockNumber != 0) {
-      vm.rollFork(blockNumber);
-    }
+    vm.createSelectFork("mainnet", FORK_BLOCK);
 
     s_feeAggregatorReceiver = new FeeAggregator(
       FeeAggregator.ConstructorParams({
         admin: OWNER,
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         linkToken: LINK,
-        ccipRouterClient: CCIP_ROUTER
+        ccipRouterClient: CCIP_ROUTER,
+        wrappedNativeToken: WETH
       })
     );
 
@@ -42,7 +39,8 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
         admin: OWNER,
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         linkToken: LINK,
-        ccipRouterClient: CCIP_ROUTER
+        ccipRouterClient: CCIP_ROUTER,
+        wrappedNativeToken: WETH
       })
     );
 
@@ -97,6 +95,11 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
     assets[1] = USDC;
     assets[2] = USDT;
     assets[3] = DAI;
+    // NOTE: Listing MATIC as an ABT causes CI to fail. After investigation this seems to be due to the MATIC token
+    // migration to the POL token as the MATIC/WETH pool is being deprecated on ethereum. There is currently no POL/WETH
+    // pool on uniswap v3 so I temporarily removed MATIC from the ABT list in the fork tests for now.
+    // TODO: Re-add MATIC to the ABT list once a POL/WETH pool is available on uniswap v3
+    // assets[4] = MATIC;
     assets[4] = WBTC;
     assets[5] = LINK;
 
@@ -137,6 +140,15 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
       swapInterval: SWAP_INTERVAL,
       path: bytes.concat(bytes20(DAI), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
     });
+    // swapParams[4] = SwapAutomator.SwapParams({
+    //   oracle: AggregatorV3Interface(MATIC_USD_FEED),
+    //   maxSlippage: MAX_SLIPPAGE,
+    //   minSwapSizeUsd: MIN_SWAP_SIZE,
+    //   maxSwapSizeUsd: MAX_SWAP_SIZE,
+    //   maxPriceDeviation: MAX_PRICE_DEVIATION,
+    //   swapInterval: SWAP_INTERVAL,
+    //   path: bytes.concat(bytes20(MATIC), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+    // });
     swapParams[4] = SwapAutomator.SwapParams({
       oracle: AggregatorV3Interface(WBTC_USD_FEED),
       maxSlippage: MAX_SLIPPAGE,
@@ -157,8 +169,8 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
     });
 
     _changePrank(ASSET_ADMIN);
-    s_feeAggregatorSender.applyAllowlistedAssets(new address[](0), assets);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(new address[](0), assets);
+    s_feeAggregatorSender.applyAllowlistedAssetUpdates(new address[](0), assets);
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), assets);
     s_swapAutomator.applyAssetSwapParamsUpdates(
       new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: assets, assetsSwapParams: swapParams})
     );
@@ -172,12 +184,14 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
     bytes[] memory receiverAddresses = new bytes[](1);
     receiverAddresses[0] = abi.encodePacked(address(s_feeAggregatorReceiver));
 
-    allowlistedReceivers[0] =
-      FeeAggregator.AllowlistedReceivers({destChainSelector: DESTINATION_CHAIN_SELECTOR, receivers: receiverAddresses});
+    allowlistedReceivers[0] = FeeAggregator.AllowlistedReceivers({
+      remoteChainSelector: DESTINATION_CHAIN_SELECTOR,
+      receivers: receiverAddresses
+    });
 
     FeeAggregator.AllowlistedReceivers[] memory emptyReceivers = new FeeAggregator.AllowlistedReceivers[](0);
 
-    s_feeAggregatorSender.applyAllowlistedReceivers(emptyReceivers, allowlistedReceivers);
+    s_feeAggregatorSender.applyAllowlistedReceiverUpdates(emptyReceivers, allowlistedReceivers);
 
     vm.label(address(s_feeAggregatorReceiver), "FeeAggregatorReceiver");
     vm.label(address(s_feeAggregatorSender), "FeeAggregatorSender");
@@ -191,12 +205,14 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
     vm.label(USDC, "USDC");
     vm.label(USDT, "USDT");
     vm.label(DAI, "DAI");
+    // vm.label(MATIC, "MATIC");
     vm.label(WBTC, "WBTC");
     vm.label(LINK_USD_FEED, "MOCK_LINK_USD_FEED");
     vm.label(ETH_USD_FEED, "ETH_USD_FEED");
     vm.label(USDC_USD_FEED, "USDC_USD_FEED");
     vm.label(USDT_USD_FEED, "USDT_USD_FEED");
     vm.label(DAI_USD_FEED, "DAI_USD_FEED");
+    vm.label(MATIC_USD_FEED, "MATIC_USD_FEED");
     vm.label(WBTC_USD_FEED, "WBTC_USD_FEED");
     vm.label(UNISWAP_ROUTER, "UNISWAP_ROUTER");
   }

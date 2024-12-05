@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {Test} from "forge-std/Test.sol";
-
 /// @title This contract is used to mock the Uniswap V3 SwapRouter contract
-contract MockUniswapQuoterV2 is Test {
+contract MockUniswapQuoterV2 {
   uint160[] private s_sqrtPriceX96AfterList;
   uint32[] private s_initializedTicksCrossedList;
   uint256 private s_gasEstimate;

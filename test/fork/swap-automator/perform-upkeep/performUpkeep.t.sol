@@ -49,7 +49,9 @@ contract PerformUpkeepForkTest is BaseForkTest {
     (, bytes memory data) = _checkUpkeepWithSimulation();
 
     skip(DEADLINE_DELAY + 1);
-    vm.expectRevert(abi.encodeWithSelector(Errors.TransactionTooOld.selector, block.timestamp, block.timestamp - 1));
+    vm.expectRevert(
+      abi.encodeWithSelector(SwapAutomator.TransactionTooOld.selector, block.timestamp, block.timestamp - 1)
+    );
     s_swapAutomator.performUpkeep(data);
   }
 
@@ -74,7 +76,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
     vm.expectEmit(address(s_swapAutomator));
     emit SwapAutomator.AssetSwapFailure(USDC, swapInputs[1]);
 
-    vm.expectRevert(Errors.AllSwapsFailed.selector);
+    vm.expectRevert(SwapAutomator.AllSwapsFailed.selector);
     s_swapAutomator.performUpkeep(data);
   }
 
@@ -118,7 +120,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
     swapInputs[0].recipient = address(0);
     data = abi.encode(swapInputs, deadline);
 
-    vm.expectRevert(Errors.FeeRecipientMismatch.selector);
+    vm.expectRevert(SwapAutomator.FeeRecipientMismatch.selector);
     s_swapAutomator.performUpkeep(data);
   }
 
@@ -137,7 +139,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
     swapInputs[0].path = unmatchedPath;
     data = abi.encode(swapInputs, deadline);
 
-    vm.expectRevert(Errors.InvalidSwapPath.selector);
+    vm.expectRevert(SwapAutomator.InvalidSwapPath.selector);
     s_swapAutomator.performUpkeep(data);
   }
 
@@ -196,7 +198,45 @@ contract PerformUpkeepForkTest is BaseForkTest {
 
   /**
    * When amountOut from uniswapRouter is below deviation threshold, performUpkeep() should soft
-   * revert for ADT.
+   * revert for ABT.
+   * Given:
+   *  amountOut for WETH is below deviation threshold.
+   * Expected:
+   *  InsufficientAmountReceived() error should be swallowed and the swap and transfer of WETH
+   * should be reverted.
+   */
+  function test_performUpkeep_SingleSwapSinglePool_StaleFeedPrice() public givenAssetEligibleForSwap(WETH) {
+    // GIVEN
+    (, bytes memory data) = _checkUpkeepWithSimulation();
+    AggregatorV3Interface wethFeed = s_swapAutomator.getAssetSwapParams(WETH).oracle;
+    uint256 amountIn = IERC20(WETH).balanceOf(address(s_feeAggregatorReceiver));
+    uint256 abtAssetPrice = _getAssetPrice(wethFeed);
+
+    vm.mockCall(
+      address(wethFeed),
+      abi.encodeWithSelector(AggregatorV3Interface.latestRoundData.selector),
+      // Timestamp of 1 is below staleness threshold
+      abi.encode(1, abtAssetPrice, 1, 1, abtAssetPrice)
+    );
+
+    /**
+     * EXPECTED:
+     * 1. StaleOracleData() error should be swallowed and the ETH swap and transfer
+     * should be reverted.
+     * 2. Since AllSwaps within performUpkeep only contain one failing swap, AllSwapsFailed() error
+     * should be thrown.
+     */
+    vm.expectRevert(SwapAutomator.AllSwapsFailed.selector);
+    s_swapAutomator.performUpkeep(data);
+
+    // ABT should be transfer back to receiver contract and the allowance should be
+    // reverted/decreased.
+    assertEq(IERC20(WETH).balanceOf(address(s_feeAggregatorReceiver)), amountIn);
+    assertEq(IERC20(WETH).allowance(UNISWAP_ROUTER, address(s_feeAggregatorReceiver)), 0);
+  }
+
+  /**
+   * When the feed price is stale, performUpkeep() should soft revert for the ABT.
    * Given:
    *  amountOut for WETH is below deviation threshold.
    * Expected:
@@ -230,10 +270,10 @@ contract PerformUpkeepForkTest is BaseForkTest {
      * 2. Since AllSwaps within performUpkeep only contain one failing swap, AllSwapsFailed() error
      * should be thrown.
      */
-    vm.expectRevert(Errors.AllSwapsFailed.selector);
+    vm.expectRevert(SwapAutomator.AllSwapsFailed.selector);
     s_swapAutomator.performUpkeep(data);
 
-    // ADT should be transfer back to receiver contract and the allowance should be
+    // ABT should be transfer back to receiver contract and the allowance should be
     // reverted/decreased.
     assertEq(IERC20(WETH).balanceOf(address(s_feeAggregatorReceiver)), amountIn);
     assertEq(IERC20(WETH).allowance(UNISWAP_ROUTER, address(s_feeAggregatorReceiver)), 0);
@@ -241,7 +281,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
 
   /**
    * When amountOut from uniswapRouter is below deviation threshold, performUpkeep() should soft
-   * revert for an ADT.
+   * revert for an ABT.
    * Given:
    *  amountOut for WETH is below deviation threshold.
    *  amountOut for USDC is happy-path, above both deviation threshold and slippage threshold.

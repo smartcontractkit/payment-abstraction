@@ -31,7 +31,7 @@ contract FeeAggregator_TransferForSwapIntegrationTest is BaseIntegrationTest {
     deal(address(s_mockUSDC), address(s_feeAggregatorReceiver), 10_000e6);
 
     _changePrank(ASSET_ADMIN);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(new address[](0), s_assets);
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), s_assets);
 
     _changePrank(address(s_swapAutomator));
   }
@@ -75,9 +75,9 @@ contract FeeAggregator_TransferForSwapIntegrationTest is BaseIntegrationTest {
 
   function test_transferForSwap() public {
     vm.expectEmit();
-    emit EmergencyWithdrawer.AssetTransferred(address(s_swapAutomator), s_assets[0], s_amounts[0]);
+    emit FeeAggregator.AssetTransferredForSwap(address(s_swapAutomator), s_assets[0], s_amounts[0]);
     vm.expectEmit();
-    emit EmergencyWithdrawer.AssetTransferred(address(s_swapAutomator), s_assets[1], s_amounts[1]);
+    emit FeeAggregator.AssetTransferredForSwap(address(s_swapAutomator), s_assets[1], s_amounts[1]);
 
     s_feeAggregatorReceiver.transferForSwap(address(s_swapAutomator), s_assets, s_amounts);
 

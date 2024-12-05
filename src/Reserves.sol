@@ -2,18 +2,18 @@
 pragma solidity 0.8.24;
 
 import {EmergencyWithdrawer} from "src/EmergencyWithdrawer.sol";
+import {LinkReceiver} from "src/LinkReceiver.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {Roles} from "src/libraries/Roles.sol";
 
 import {ILinkAvailable} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/automation/ILinkAvailable.sol";
 import {ITypeAndVersion} from "@chainlink/contracts/src/v0.8/shared/interfaces/ITypeAndVersion.sol";
-import {IERC677Receiver} from "@chainlink/contracts/src/v0.8/shared/token/ERC677/IERC677Receiver.sol";
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /// @notice This contract manages the earmarking of funds for service providers
-contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILinkAvailable {
+contract Reserves is EmergencyWithdrawer, LinkReceiver, ITypeAndVersion, ILinkAvailable {
   using EnumerableSet for EnumerableSet.AddressSet;
   using SafeERC20 for IERC20;
 
@@ -21,14 +21,14 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
   /// the contract's current reserves
   /// @param currentReserves The current reserves of the contract
   /// @param totalAmountOwed The total amount owed to service providers
-  error EarmarksTotalGreaterThanReserves(uint256 currentReserves, int96 totalAmountOwed);
+  error EarmarksTotalGreaterThanReserves(uint256 currentReserves, uint256 totalAmountOwed);
   /// @notice This error is thrown when a service provider has an insufficient earmarked Link balance to withdraw
   /// @param linkBalance The current link balance of the service provider
   error InsufficientEarmarkBalance(int96 linkBalance);
+  /// @notice This error is thrown when the service provider is not allowlisted when setting an earmark
+  /// @param serviceProvider The address of the service provider
+  error ServiceProviderNotAllowlisted(address serviceProvider);
 
-  /// @notice This event is emitted when the LINK token address is set
-  /// @param linkToken The LINK token address
-  event LINKTokenSet(address indexed linkToken);
   /// @notice This event is emitted when an earmark is set for a service provider
   /// @param serviceProvider The address of the service provider
   /// @param earmarkCounter The current value of the service provider's earmark counter
@@ -40,7 +40,7 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
   /// @notice This event is emitted when a service provider's balance is withdrawn
   /// @param serviceProvider The address of the service provider
   /// @param amount The amount withdrawn
-  event Withdrawn(address indexed serviceProvider, int96 amount);
+  event Withdrawn(address indexed serviceProvider, uint256 amount);
   /// @notice This event is emitted when a service provider is removed from the allowlist
   /// @param serviceProvider The address of the service provider
   event ServiceProviderRemovedFromAllowlist(address indexed serviceProvider);
@@ -79,11 +79,12 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
   /// @inheritdoc ITypeAndVersion
   string public constant override typeAndVersion = "Reserves 1.0.0";
 
-  /// @notice The link token
-  IERC20 private immutable i_linkToken;
-
-  /// @notice The total amount of LINK owed to service providers
-  int96 private s_totalLinkAmountOwed;
+  /// @notice The total amount of LINK the reserves contract owes to service providers
+  /// @dev This value is only ever positive even though service providers can have negative balances. If a service
+  /// provider has a negative balance, their contribution to this value is 0.
+  /// @dev This value is used to ensure that the contract has enough LINK to pay service providers when setting
+  /// earmarks.
+  uint256 private s_totalLinkAmountOwed;
   /// @notice The set of allowlisted service providers
   EnumerableSet.AddressSet private s_allowlistedServiceProviders;
 
@@ -92,14 +93,7 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
 
   constructor(
     ConstructorParams memory params
-  ) EmergencyWithdrawer(params.adminRoleTransferDelay, params.admin) {
-    if (params.linkToken == address(0)) {
-      revert Errors.InvalidZeroAddress();
-    }
-    i_linkToken = IERC20(params.linkToken);
-
-    emit LINKTokenSet(params.linkToken);
-  }
+  ) EmergencyWithdrawer(params.adminRoleTransferDelay, params.admin) LinkReceiver(params.linkToken) {}
 
   // ================================================================
   // │                           Earmarks                           │
@@ -117,20 +111,33 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
       revert Errors.EmptyList();
     }
 
-    int96 totalAmountOwed = s_totalLinkAmountOwed;
+    uint256 totalAmountOwed = s_totalLinkAmountOwed;
+
     for (uint256 i; i < earmarks.length; ++i) {
       if (!s_allowlistedServiceProviders.contains(earmarks[i].serviceProvider)) {
-        continue;
+        revert ServiceProviderNotAllowlisted(earmarks[i].serviceProvider);
       }
-
-      int96 amountLinkOwed = earmarks[i].amountLinkOwed;
-      totalAmountOwed += amountLinkOwed;
 
       address serviceProvider = earmarks[i].serviceProvider;
       ServiceProvider memory serviceProviderInfo = s_serviceProviders[serviceProvider];
 
+      int96 amountLinkOwed = earmarks[i].amountLinkOwed;
+      int96 currentBalance = serviceProviderInfo.linkBalance;
+      int96 newBalance = currentBalance + amountLinkOwed;
+      // A service provider's balance can be negative in the case of a correction, however the total amount owed is
+      // equal to the sum of all positive balances.
+      // If the current balance is positive, we subtract it from the total amount owed. We add the new balance back to
+      // the total if it is positive.
+      if (currentBalance > 0) {
+        totalAmountOwed -= uint256(int256(currentBalance));
+      }
+      if (newBalance > 0) {
+        // The balance is positive, so we add it to the total amount owed
+        totalAmountOwed += uint256(int256(newBalance));
+      }
+
       uint256 earmarkCounter = ++serviceProviderInfo.earmarkCounter;
-      serviceProviderInfo.linkBalance += amountLinkOwed;
+      serviceProviderInfo.linkBalance = newBalance;
 
       s_serviceProviders[serviceProvider] = serviceProviderInfo;
 
@@ -138,7 +145,8 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
     }
 
     uint256 currentReserves = i_linkToken.balanceOf(address(this));
-    if (totalAmountOwed > 0 && uint256(int256(totalAmountOwed)) > currentReserves) {
+
+    if (totalAmountOwed > currentReserves) {
       revert EarmarksTotalGreaterThanReserves(currentReserves, totalAmountOwed);
     }
 
@@ -146,8 +154,8 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
   }
 
   /// @notice Getter function to retrieve the total amount of LINK owed to service providers
-  /// @return int96 The total amount owed to service providers
-  function getTotalLinkAmountOwed() external view returns (int96) {
+  /// @return totalLinkAmountOwed The total amount owed to service providers
+  function getTotalLinkAmountOwed() external view returns (uint256 totalLinkAmountOwed) {
     return s_totalLinkAmountOwed;
   }
 
@@ -167,7 +175,8 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
       revert Errors.EmptyList();
     }
 
-    int96 totalAmountOwed = s_totalLinkAmountOwed;
+    uint256 totalAmountOwed = s_totalLinkAmountOwed;
+
     for (uint256 i; i < serviceProviders.length; ++i) {
       address serviceProvider = serviceProviders[i];
 
@@ -175,17 +184,18 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
 
       int96 linkBalance = serviceProviderInfo.linkBalance;
 
-      if (linkBalance < 1) {
+      if (serviceProviderInfo.linkBalance <= 0) {
         revert InsufficientEarmarkBalance(linkBalance);
       }
 
+      uint256 linkWithdrawn = uint256(int256(linkBalance));
+
       serviceProviderInfo.linkBalance = 0;
-      totalAmountOwed -= linkBalance;
+      totalAmountOwed -= linkWithdrawn;
 
-      // There is no risk of underflow here because linkBalance is guaranteed to be >= 1
-      i_linkToken.safeTransfer(serviceProvider, uint256(int256(linkBalance)));
+      i_linkToken.safeTransfer(serviceProvider, linkWithdrawn);
 
-      emit Withdrawn(serviceProvider, linkBalance);
+      emit Withdrawn(serviceProvider, linkWithdrawn);
     }
 
     s_totalLinkAmountOwed = totalAmountOwed;
@@ -203,6 +213,10 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
     }
 
     for (uint256 i; i < serviceProviders.length; ++i) {
+      if (serviceProviders[i] == address(0)) {
+        revert Errors.InvalidZeroAddress();
+      }
+
       if (s_allowlistedServiceProviders.add(serviceProviders[i])) {
         emit ServiceProviderAllowlisted(serviceProviders[i]);
       }
@@ -229,38 +243,25 @@ contract Reserves is EmergencyWithdrawer, IERC677Receiver, ITypeAndVersion, ILin
 
   /// @notice Getter function to check if a service provider is allowlisted
   /// @param serviceProvider The address of the service provider
-  /// @return bool True if the service provider is allowlisted, false otherwise
+  /// @return isAllowlisted True if the service provider is allowlisted, false otherwise
   function isServiceProviderAllowlisted(
     address serviceProvider
-  ) external view returns (bool) {
+  ) external view returns (bool isAllowlisted) {
     return s_allowlistedServiceProviders.contains(serviceProvider);
   }
 
   /// @notice Getter function to retrieve a service provider earmarkCounter and balance
-  /// @param serviceProvider The address of the service provider
-  /// @return ServiceProvider The service provider's earmarkCounter and balance
+  /// @param serviceProviderAddress The address of the service provider
+  /// @return serviceProvider The service provider's earmarkCounter and balance
   function getServiceProvider(
-    address serviceProvider
-  ) external view returns (ServiceProvider memory) {
-    return s_serviceProviders[serviceProvider];
+    address serviceProviderAddress
+  ) external view returns (ServiceProvider memory serviceProvider) {
+    return s_serviceProviders[serviceProviderAddress];
   }
 
   // ================================================================
   // │                            LINK Token                        │
   // ================================================================
-
-  /// @inheritdoc IERC677Receiver
-  /// @dev Implementing onTokenTransfer only to maximize Link receiving compatibility. No extra logic added.
-  /// @dev precondition The sender must be the LINK token
-  function onTokenTransfer(address, uint256, bytes calldata) external view {
-    if (msg.sender != address(i_linkToken)) revert Errors.SenderNotLinkToken();
-  }
-
-  /// @notice Getter function to retrieve the LINK token address
-  /// @return IERC20 The LINK token address
-  function getLinkToken() external view returns (IERC20) {
-    return i_linkToken;
-  }
 
   /// @inheritdoc ILinkAvailable
   function linkAvailableForPayment() external view returns (int256 linkBalance) {

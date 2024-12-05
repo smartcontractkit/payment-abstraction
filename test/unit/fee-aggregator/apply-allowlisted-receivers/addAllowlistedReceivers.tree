@@ -6,9 +6,15 @@ addAllowListedReceivers.t.sol
     │   └── it should revert
     └── given the contract is not paused
         ├── when the added receivers list is empty
-        │   └── it should revert
+        │   └── it should not emit any logs
         └── when the added receivers list is not empty
             ├── when the receiver is already allowlisted
+            │   └── it should revert
+            ├── when the receiver is an empty bytes address
+            │   └── it should revert
+            ├── when the receiver is a zero EVM address
+            │   └── it should revert
+            ├── when the destination chain selector is zero
             │   └── it should revert
             ├── when the receiver is not already allowlisted
             │   ├── it should add the receiver to the allow list

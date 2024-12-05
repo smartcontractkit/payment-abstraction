@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-/// Library for managing sets of bytes. Reuses OpenZeppelin's EnumerableSet library logic but for bytes.
+/// @notice Library for managing sets of bytes. Reuses OpenZeppelin's EnumerableSet library logic but for bytes.
 /* solhint-disable chainlink-solidity/prefix-internal-functions-with-underscore */
 library EnumerableBytesSet {
   struct BytesSet {

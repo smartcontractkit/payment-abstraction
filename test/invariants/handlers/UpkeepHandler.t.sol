@@ -5,9 +5,9 @@ import {FeeAggregator} from "src/FeeAggregator.sol";
 import {SwapAutomator} from "src/SwapAutomator.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {BaseTest} from "test/BaseTest.t.sol";
-import {MockAggregatorV3} from "test/invariants/mocks/MockAggregatorV3.t.sol";
-import {MockUniswapQuoterV2} from "test/invariants/mocks/MockUniswapQuoterV2.t.sol";
-import {MockUniswapRouter} from "test/invariants/mocks/MockUniswapRouter.t.sol";
+import {MockAggregatorV3} from "test/mocks/MockAggregatorV3.sol";
+import {MockUniswapQuoterV2} from "test/mocks/MockUniswapQuoterV2.sol";
+import {MockUniswapRouter} from "test/mocks/MockUniswapRouter.sol";
 
 import {PercentageMath} from "@aave/core-v3/contracts/protocol/libraries/math/PercentageMath.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/interfaces/AggregatorV3Interface.sol";
@@ -181,7 +181,7 @@ contract UpkeepHandler is BaseTest {
 
     if (shouldPerformUpkeep) {
       if (!success) {
-        vm.expectRevert(Errors.AllSwapsFailed.selector);
+        vm.expectRevert(SwapAutomator.AllSwapsFailed.selector);
       }
 
       s_totalAmountOutMinimum += totalAmountOutMinimum;

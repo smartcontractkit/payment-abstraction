@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import {FeeAggregator} from "src/FeeAggregator.sol";
+
 import {PausableWithAccessControl} from "src/PausableWithAccessControl.sol";
 import {Constants} from "test/Constants.t.sol";
 
@@ -14,6 +16,16 @@ contract BaseTest is Constants, Test {
     (, address msgSender,) = vm.readCallers();
     _changePrank(PAUSER);
     PausableWithAccessControl(contractAddress).emergencyPause();
+    _changePrank(msgSender);
+    _;
+  }
+
+  modifier givenContractIsNotPaused(
+    address contractAddress
+  ) {
+    (, address msgSender,) = vm.readCallers();
+    _changePrank(UNPAUSER);
+    PausableWithAccessControl(contractAddress).emergencyUnpause();
     _changePrank(msgSender);
     _;
   }

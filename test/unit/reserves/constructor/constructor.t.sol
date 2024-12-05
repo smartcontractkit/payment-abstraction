@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
+import {LinkReceiver} from "src/LinkReceiver.sol";
 import {Reserves} from "src/Reserves.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
@@ -8,7 +9,7 @@ import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
 contract Reserves_ConstructorUnitTests is BaseUnitTest {
   function test_constructor() public {
     vm.expectEmit();
-    emit Reserves.LINKTokenSet(address(s_mockLINK));
+    emit LinkReceiver.LinkTokenSet(address(s_mockLINK));
 
     new Reserves(
       Reserves.ConstructorParams({
@@ -26,7 +27,7 @@ contract Reserves_ConstructorUnitTests is BaseUnitTest {
     assertEq(s_reserves.linkAvailableForPayment(), 100);
   }
 
-  function test_constructor_RevertWhen_InvalidZeroAddress() public {
+  function test_constructor_RevertWhen_LINKAddressIsZero() public {
     vm.expectRevert(Errors.InvalidZeroAddress.selector);
     new Reserves(
       Reserves.ConstructorParams({

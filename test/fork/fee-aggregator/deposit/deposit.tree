@@ -1,0 +1,5 @@
+deposit.t.sol
+├─ when there is no outstanding native token balance
+│  └─ it should revert
+└─ when there is an outstanding native token balance
+   └─ it should wrap the native tokens

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
-import {EmergencyWithdrawer} from "src/EmergencyWithdrawer.sol";
+import {FeeAggregator} from "src/FeeAggregator.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {Roles} from "src/libraries/Roles.sol";
 import {BaseIntegrationTest} from "test/integration/BaseIntegrationTest.t.sol";
@@ -21,7 +21,7 @@ contract FeeAggregator_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegr
     allowlistedAssets[0] = address(s_mockWETH);
 
     _changePrank(ASSET_ADMIN);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(new address[](0), allowlistedAssets);
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), allowlistedAssets);
 
     _changePrank(WITHDRAWER);
     s_assets.push(address(s_mockWBTC));
@@ -81,7 +81,7 @@ contract FeeAggregator_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegr
     s_amounts.pop();
 
     vm.expectEmit(address(s_feeAggregatorReceiver));
-    emit EmergencyWithdrawer.AssetTransferred(WITHDRAWER, s_assets[0], s_amounts[0]);
+    emit FeeAggregator.NonAllowlistedAssetWithdrawn(WITHDRAWER, s_assets[0], s_amounts[0]);
 
     s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
 
@@ -91,9 +91,9 @@ contract FeeAggregator_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegr
 
   function test_withdrawNonAllowlistedAssets_MultipleAssets() public {
     vm.expectEmit(address(s_feeAggregatorReceiver));
-    emit EmergencyWithdrawer.AssetTransferred(WITHDRAWER, s_assets[0], s_amounts[0]);
+    emit FeeAggregator.NonAllowlistedAssetWithdrawn(WITHDRAWER, s_assets[0], s_amounts[0]);
     vm.expectEmit(address(s_feeAggregatorReceiver));
-    emit EmergencyWithdrawer.AssetTransferred(WITHDRAWER, s_assets[1], s_amounts[1]);
+    emit FeeAggregator.NonAllowlistedAssetWithdrawn(WITHDRAWER, s_assets[1], s_amounts[1]);
 
     s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
 

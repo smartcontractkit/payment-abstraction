@@ -22,7 +22,7 @@ contract FeeRouter_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegratio
     allowlistedAssets[0] = address(s_mockWETH);
 
     _changePrank(ASSET_ADMIN);
-    s_feeAggregatorReceiver.applyAllowlistedAssets(new address[](0), allowlistedAssets);
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), allowlistedAssets);
 
     _changePrank(WITHDRAWER);
     s_assets.push(address(s_mockWBTC));
@@ -41,24 +41,29 @@ contract FeeRouter_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegratio
     vm.expectRevert(
       abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, OWNER, Roles.WITHDRAWER_ROLE)
     );
-    s_feeRouter.withdrawNonAllowlistedAssets(s_assets, s_amounts);
+    s_feeRouter.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
+  }
+
+  function test_withdrawNonAllowlistedAssets_RevertWhen_ToEqAddressZero() public {
+    vm.expectRevert(Errors.InvalidZeroAddress.selector);
+    s_feeRouter.withdrawNonAllowlistedAssets(address(0), s_assets, s_amounts);
   }
 
   function test_withdrawNonAllowlistedAssets_RevertWhen_EmptyAssetList() public {
     vm.expectRevert(Errors.EmptyList.selector);
-    s_feeRouter.withdrawNonAllowlistedAssets(new address[](0), new uint256[](0));
+    s_feeRouter.withdrawNonAllowlistedAssets(WITHDRAWER, new address[](0), new uint256[](0));
   }
 
   function test_withdrawNonAllowlistedAssets_RevertWhen_AssetIsAddressZero() public {
     s_assets[0] = address(0);
     vm.expectRevert(Errors.InvalidZeroAddress.selector);
-    s_feeRouter.withdrawNonAllowlistedAssets(s_assets, s_amounts);
+    s_feeRouter.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
   }
 
   function test_withdrawNonAllowlistedAssets_RevertWhen_AmountIsZero() public {
     s_amounts[0] = 0;
     vm.expectRevert(Errors.InvalidZeroAmount.selector);
-    s_feeRouter.withdrawNonAllowlistedAssets(s_assets, s_amounts);
+    s_feeRouter.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
   }
 
   function test_withdrawNonAllowlistedAssets_RevertWhen_AssetIsAllowlisted() public {
@@ -68,7 +73,7 @@ contract FeeRouter_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegratio
     amounts[0] = 1 ether;
 
     vm.expectRevert(abi.encodeWithSelector(Errors.AssetAllowlisted.selector, address(s_mockWETH)));
-    s_feeRouter.withdrawNonAllowlistedAssets(assets, amounts);
+    s_feeRouter.withdrawNonAllowlistedAssets(WITHDRAWER, assets, amounts);
   }
 
   function test_withdrawNonAllowlistedAssets_SingleAsset() public {
@@ -76,9 +81,9 @@ contract FeeRouter_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegratio
     s_amounts.pop();
 
     vm.expectEmit(address(s_feeRouter));
-    emit EmergencyWithdrawer.AssetTransferred(WITHDRAWER, s_assets[0], s_amounts[0]);
+    emit FeeRouter.NonAllowlistedAssetWithdrawn(WITHDRAWER, s_assets[0], s_amounts[0]);
 
-    s_feeRouter.withdrawNonAllowlistedAssets(s_assets, s_amounts);
+    s_feeRouter.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
 
     assertEq(s_mockWBTC.balanceOf(WITHDRAWER), s_amounts[0]);
     assertEq(s_mockWBTC.balanceOf(address(s_feeRouter)), 0);
@@ -86,11 +91,11 @@ contract FeeRouter_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegratio
 
   function test_withdrawNonAllowlistedAssets_MultipleAssets() public {
     vm.expectEmit(address(s_feeRouter));
-    emit EmergencyWithdrawer.AssetTransferred(WITHDRAWER, s_assets[0], s_amounts[0]);
+    emit FeeRouter.NonAllowlistedAssetWithdrawn(WITHDRAWER, s_assets[0], s_amounts[0]);
     vm.expectEmit(address(s_feeRouter));
-    emit EmergencyWithdrawer.AssetTransferred(WITHDRAWER, s_assets[1], s_amounts[1]);
+    emit FeeRouter.NonAllowlistedAssetWithdrawn(WITHDRAWER, s_assets[1], s_amounts[1]);
 
-    s_feeRouter.withdrawNonAllowlistedAssets(s_assets, s_amounts);
+    s_feeRouter.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
 
     assertEq(s_mockWBTC.balanceOf(WITHDRAWER), s_amounts[0]);
     assertEq(s_mockUSDC.balanceOf(WITHDRAWER), s_amounts[1]);

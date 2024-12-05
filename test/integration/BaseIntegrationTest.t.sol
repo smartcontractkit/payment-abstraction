@@ -7,10 +7,13 @@ import {Reserves} from "src/Reserves.sol";
 import {SwapAutomator} from "src/SwapAutomator.sol";
 import {Roles} from "src/libraries/Roles.sol";
 import {BaseTest} from "test/BaseTest.t.sol";
-import {MockAggregatorV3} from "test/invariants/mocks/MockAggregatorV3.t.sol";
-import {MockUniswapQuoterV2} from "test/invariants/mocks/MockUniswapQuoterV2.t.sol";
-import {MockUniswapRouter} from "test/invariants/mocks/MockUniswapRouter.t.sol";
 
+import {MockAggregatorV3} from "test/mocks/MockAggregatorV3.sol";
+import {MockUniswapQuoterV2} from "test/mocks/MockUniswapQuoterV2.sol";
+import {MockUniswapRouter} from "test/mocks/MockUniswapRouter.sol";
+import {MockWrappedNative} from "test/mocks/MockWrappedNative.sol";
+
+import {MockLinkToken} from "@chainlink/contracts/src/v0.8/mocks/MockLinkToken.sol";
 import {MockERC20} from "forge-std/mocks/MockERC20.sol";
 
 // @notice Base contract for integration tests. Tests the interactions between multiple contracts in a simulated
@@ -21,8 +24,8 @@ abstract contract BaseIntegrationTest is BaseTest {
   SwapAutomator internal s_swapAutomator;
   Reserves internal s_reserves;
 
-  MockERC20 internal s_mockWETH;
-  MockERC20 internal s_mockLINK;
+  MockWrappedNative internal s_mockWETH;
+  MockLinkToken internal s_mockLINK;
   MockERC20 internal s_mockUSDC;
   MockERC20 internal s_mockWBTC;
 
@@ -31,17 +34,30 @@ abstract contract BaseIntegrationTest is BaseTest {
   MockUniswapRouter internal s_mockUniswapRouter;
   MockUniswapQuoterV2 internal s_mockUniswapQuoterV2;
 
+  modifier givenAssetIsAllowlisted(
+    address asset
+  ) {
+    (, address msgSender,) = vm.readCallers();
+
+    address[] memory assets = new address[](1);
+    assets[0] = asset;
+
+    _changePrank(ASSET_ADMIN);
+    s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), assets);
+    _changePrank(msgSender);
+    _;
+  }
+
   constructor() {
     // Increment block.timestamp to avoid underflows
     skip(1 weeks);
 
-    s_mockWETH = new MockERC20();
-    s_mockLINK = new MockERC20();
+    s_mockWETH = new MockWrappedNative();
+    s_mockLINK = new MockLinkToken();
     s_mockUSDC = new MockERC20();
     s_mockWBTC = new MockERC20();
 
     s_mockWETH.initialize("WETH", "WETH", 18);
-    s_mockLINK.initialize("LINK", "LINK", 18);
     s_mockUSDC.initialize("USDC", "USDC", 6);
     s_mockWBTC.initialize("WBTC", "WBTC", 8);
 
@@ -54,7 +70,8 @@ abstract contract BaseIntegrationTest is BaseTest {
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         admin: OWNER,
         linkToken: address(s_mockLINK),
-        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT
+        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT,
+        wrappedNativeToken: address(s_mockWETH)
       })
     );
 
@@ -62,7 +79,9 @@ abstract contract BaseIntegrationTest is BaseTest {
       FeeRouter.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         admin: OWNER,
-        feeAggregator: address(s_feeAggregatorReceiver)
+        feeAggregator: address(s_feeAggregatorReceiver),
+        linkToken: address(s_mockLINK),
+        wrappedNativeToken: address(s_mockWETH)
       })
     );
 
@@ -97,6 +116,7 @@ abstract contract BaseIntegrationTest is BaseTest {
     s_feeRouter.grantRole(Roles.BRIDGER_ROLE, BRIDGER);
     s_feeRouter.grantRole(Roles.PAUSER_ROLE, PAUSER);
     s_feeRouter.grantRole(Roles.WITHDRAWER_ROLE, WITHDRAWER);
+    s_feeRouter.grantRole(Roles.UNPAUSER_ROLE, UNPAUSER);
     s_reserves.grantRole(Roles.PAUSER_ROLE, PAUSER);
     s_reserves.grantRole(Roles.UNPAUSER_ROLE, UNPAUSER);
 
