@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {FeeAggregator} from "src/FeeAggregator.sol";
 import {Errors} from "src/libraries/Errors.sol";
@@ -22,7 +22,7 @@ contract AddAllowlistedReceiversUnitTest is BaseUnitTest {
     newReceivers[0] = allowlistedReceiver;
 
     vm.expectRevert(
-      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, NON_OWNER, DEFAULT_ADMIN_ROLE)
+      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, i_nonOwner, DEFAULT_ADMIN_ROLE)
     );
     s_feeAggregatorReceiver.applyAllowlistedReceiverUpdates(emptyReceivers, newReceivers);
   }

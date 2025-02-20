@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {Reserves} from "src/Reserves.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {Roles} from "src/libraries/Roles.sol";
-import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
+import {BaseIntegrationTest} from "test/integration/BaseIntegrationTest.t.sol";
 
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
-contract Reserves_SetEarmarksUnitTest is BaseUnitTest {
+contract Reserves_SetEarmarksUnitTest is BaseIntegrationTest {
   Reserves.Earmark[] private s_singleEarmark;
   Reserves.Earmark[] private s_multipleEarmarks;
 
   modifier whenCallerIsNotEarmarkManager() {
-    _changePrank(OWNER);
+    _changePrank(i_owner);
     _;
   }
 
   function setUp() public {
-    _changePrank(EARMARK_MANAGER);
+    _changePrank(i_earmarkManager);
+    deal(address(s_mockLINK), address(s_reserves), 10e18);
     s_reserves.addAllowlistedServiceProviders(s_serviceProviders);
     s_singleEarmark.push(Reserves.Earmark(s_serviceProviders[0], 1e18, "earmarkBytes1"));
     s_multipleEarmarks.push(Reserves.Earmark(s_serviceProviders[0], 1e18, "earmarkBytes1"));
@@ -178,7 +179,7 @@ contract Reserves_SetEarmarksUnitTest is BaseUnitTest {
   function test_setEarmarks_RevertWhen_CallerDoesNotHaveTheEARMARK_MANAGER_ROLE() public whenCallerIsNotEarmarkManager {
     vm.expectRevert(
       abi.encodeWithSelector(
-        IAccessControl.AccessControlUnauthorizedAccount.selector, OWNER, Roles.EARMARK_MANAGER_ROLE
+        IAccessControl.AccessControlUnauthorizedAccount.selector, i_owner, Roles.EARMARK_MANAGER_ROLE
       )
     );
     s_reserves.setEarmarks(s_multipleEarmarks);

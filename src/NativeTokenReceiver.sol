@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {IWERC20} from "@chainlink/contracts/src/v0.8/shared/interfaces/IWERC20.sol";
 import {Errors} from "src/libraries/Errors.sol";
@@ -44,9 +44,10 @@ abstract contract NativeTokenReceiver {
   /// indicates a low level call. Otherwise, transfer method has been used which won't allow for a wrapping call so the
   /// contracts simply receives the msg.value.
   receive() external payable {
-    if (address(s_wrappedNativeToken) != address(0)) {
-      if (gasleft() > MIN_GAS_FOR_RECEIVE) {
-        s_wrappedNativeToken.deposit{value: msg.value}();
+    if (gasleft() > MIN_GAS_FOR_RECEIVE) {
+      if (address(s_wrappedNativeToken) != address(0)) {
+        // We try catch the deposit call as some chain's wrapped native token may not support the deposit function
+        try s_wrappedNativeToken.deposit{value: msg.value}() {} catch {}
       }
     }
   }
@@ -62,7 +63,7 @@ abstract contract NativeTokenReceiver {
     address wrappedNativeToken
   ) internal {
     if (wrappedNativeToken == address(s_wrappedNativeToken)) {
-      revert Errors.ValueEqOriginalValue();
+      revert Errors.ValueNotUpdated();
     }
 
     s_wrappedNativeToken = IWERC20(wrappedNativeToken);

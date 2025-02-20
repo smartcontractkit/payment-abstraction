@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {IFeeAggregator} from "src/interfaces/IFeeAggregator.sol";
 
-import {FeeAggregator} from "src/FeeAggregator.sol";
 import {PausableWithAccessControl} from "src/PausableWithAccessControl.sol";
+import {Common} from "src/libraries/Common.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {Roles} from "src/libraries/Roles.sol";
 
@@ -18,6 +18,7 @@ import {LinkTokenInterface} from "@chainlink/contracts/src/v0.8/shared/interface
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {IV3SwapRouter} from "@uniswap/swap-router-contracts/contracts/interfaces/IV3SwapRouter.sol";
@@ -73,39 +74,46 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
   /// LINK is set
   /// @param linkReceiver The address that will receive swapped LINK
   event LinkReceiverSet(address indexed linkReceiver);
+  /// @notice This event is emitted when the LINK token decimals are set in the constructor
+  /// @param decimals The LINK token decimals
+  event LinkDecimalsSet(uint256 decimals);
+  /// @notice This event is emitted when the LINK/USD feed decimals are set in the constructor
+  /// @param decimals The LINK/USD feed decimals
+  event LinkUsdFeedDecimalsSet(uint256 decimals);
+  /// @notice This event is emitted when the maximum size of the perform data is set
+  /// @param maxPerformDataSize The maximum size of the perform data
+  event MaxPerformDataSizeSet(uint256 maxPerformDataSize);
 
-  /// @notice This error is thrown when the asset list and the swap params list
-  /// have different lengths
-  error AssetsSwapParamsMismatch();
   /// @notice This error is thrown when max slippage parameter set is 0, or above 100%
-  error InvalidSlippage();
+  /// @param maxSlippage value for max slippage passed into function
+  error InvalidSlippage(uint16 maxSlippage);
   /// @notice This error is thrown when the max price deviation is set below the max slippage, or above 100%
-  error InvalidMaxPriceDeviation();
+  /// @param maxPriceDeviation value for max price deviation passed into function
+  error InvalidMaxPriceDeviation(uint16 maxPriceDeviation);
+  /// @notice This error is thrown when the min swap size is zero or greater than the max swap size
+  error InvalidMinSwapSizeUsd();
   /// @notice This error is thrown when trying to set an empty swap path
   error EmptySwapPath();
-  /// @notice This error is thrown trying to set the same deadline delay as the one already set
-  error DeadlineDelayNotUpdated();
   /// @notice This error is thrown when trying to set the deadline delay to a value lower than the
   /// minimum threshold
   error DeadlineDelayTooLow(uint96 deadlineDelay, uint96 minDeadlineDelay);
   /// @notice This error is thrown when trying to set the deadline delay to a value higher than the
   /// maximum threshold
   error DeadlineDelayTooHigh(uint96 deadlineDelay, uint96 maxDeadlineDelay);
-  /// @notice This error is thrown when trying to set the same LINK receiver as the one already set
-  error LinkReceiverNotUpdated();
   /// @notice This error is thrown when the transaction timestamp is greater than the deadline
   error TransactionTooOld(uint256 timestamp, uint256 deadline);
   /// @notice This error is thrown when the swap path is invalid as compared to the swap path set by
   /// the Admin.
   error InvalidSwapPath();
-  /// @notice This error is thrown when the recipent of the swap pram does not match the receiver's
-  /// fee recipent address.
-  error FeeRecipientMismatch();
+  /// @notice This error is thrown when the recipent of the swap param does not match the receiver's
+  /// @param feeRecipient address of the fee recipient passed into function
+  error FeeRecipientMismatch(address feeRecipient);
   /// @notice This error is thrown when all performed swaps have failed
   error AllSwapsFailed();
   /// @notice This error is thrown when the amount received from a swap is less than the minimum
-  /// amount expected
-  error InsufficientAmountReceived();
+  /// @param amountOut Uniswap extracted amount out
+  /// @param minAmount Minimum amount required for swap
+  error InsufficientAmountReceived(uint256 amountOut, uint256 minAmount);
 
   /// @notice Parameters to instantiate the contract in the constructor
   /* solhint-disable-next-line gas-struct-packing */
@@ -120,33 +128,30 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
     address uniswapRouter; //            The address of the Uniswap router
     address uniswapQuoterV2; //          The address of the Uniswap QuoterV2
     address linkReceiver; //             The address that will receive converted LINK
+    uint256 maxPerformDataSize; //       The maximum size of the perform data passed to the performUpkeep function
   }
 
   /// @notice The parameters to perform a swap
   struct SwapParams {
-    AggregatorV3Interface oracle; // ─╮ The asset usd oracle
-    uint16 maxSlippage; //            │ The maximum allowed slippage for the swap in basis points
-    uint16 maxPriceDeviation; //      │  The maximum allowed one-side deviation of actual swapped out amount
-    //                                │  vs CL oracle price feed estimated amount, in basis points
-    uint64 swapInterval; // ──────────╯ The minimum interval between swaps
-    uint128 minSwapSizeUsd; // ───────╮ The minimum swap size expressed in USD 8 decimals
-    uint128 maxSwapSizeUsd; // ───────╯ The maximum swap size expressed in USD 8 decimals
-    bytes path; //                      The swap path
+    AggregatorV3Interface usdFeed; // ─╮ The asset usd feed
+    uint16 maxSlippage; //             │ The maximum allowed slippage for the swap in basis points
+    uint16 maxPriceDeviation; //       │ The maximum allowed one-side deviation of actual swapped out amount
+    //                                 │ vs CLprice feed estimated amount, in basis points
+    uint32 swapInterval; //            │ The minimum interval between swaps
+    uint32 stalenessThreshold; // ─────╯ The staleness threshold for price feed data
+    uint128 minSwapSizeUsd; // ────────╮ The minimum swap size expressed in USD feed decimals
+    uint128 maxSwapSizeUsd; // ────────╯ The maximum swap size expressed in USD feed decimals
+    bytes path; // The swap path
   }
 
-  /// @notice Contains the swap parameters for a list of assets
+  /// @notice Contains the swap parameters for an asset
   struct AssetSwapParamsArgs {
-    address[] assets; // The list of assets
-    SwapParams[] assetsSwapParams; // The list of swap parameters
+    address asset; // The asset
+    SwapParams swapParams; // The asset's swap parameters
   }
 
   /// @inheritdoc ITypeAndVersion
   string public constant override typeAndVersion = "Uniswap V3 Swap Automator 1.0.0";
-  /// @notice The staleness threshold for oracles data
-  /// @dev The threshold is set to 1 day to match the Chainlink feeds heartbeat requirement
-  uint256 private constant STALENESS_THRESHOLD = 1 days;
-  /// @notice The number of decimals for the LINK token
-  uint256 private constant LINK_DECIMALS = 18;
   /// @notice The lower bound for the deadline delay
   uint96 private constant MIN_DEADLINE_DELAY = 1 minutes;
   /// @notice The upper bound for the deadline delay
@@ -154,21 +159,28 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
 
   /// @notice The link token
   LinkTokenInterface private immutable i_linkToken;
-  /// @notice The address of the chainlink USD oracle
+  /// @notice The address of the chainlink USD feed
   AggregatorV3Interface private immutable i_linkUsdFeed;
   /// @notice The address of the Uniswap router
   IV3SwapRouter private immutable i_uniswapRouter;
   /// @notice The address of the Uniswap QuoterV2
   IQuoterV2 private immutable i_uniswapQuoterV2;
+  /// @notice The number of decimals for the LINK token
+  uint256 private immutable i_linkDecimals;
+  /// @notice The number of decimals for the LINK/USD feed
+  uint256 private immutable i_linkUsdFeedDecimals;
 
   /// @notice The address will execute the automation job
   address private s_forwarder;
   /// @notice The maximum amount of seconds the swap transaction is valid for
   uint96 private s_deadlineDelay;
+
   /// @notice The fee aggregator
   IFeeAggregator private s_feeAggregator;
-  /// @notice Mapping of assets to their swap parameters
+  /// @notice The receiver of LINK tokens
   address private s_linkReceiver;
+  /// @notice The maximum size of the perform data passed to the performUpkeep function
+  uint256 private s_maxPerformDataSize;
 
   /// @notice Mapping of assets to their swap parameters
   mapping(address asset => SwapParams swapParams) private s_assetSwapParams;
@@ -191,13 +203,20 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
     i_linkUsdFeed = AggregatorV3Interface(params.linkUsdFeed);
     i_uniswapRouter = IV3SwapRouter(params.uniswapRouter);
     i_uniswapQuoterV2 = IQuoterV2(params.uniswapQuoterV2);
-    _setFeeAggregator(params.feeAggregator);
-    _setDeadlineDelay(params.deadlineDelay);
-    _setLinkReceiver(params.linkReceiver);
+    i_linkDecimals = IERC20Metadata(params.linkToken).decimals();
+    i_linkUsdFeedDecimals = AggregatorV3Interface(params.linkUsdFeed).decimals();
+
     emit LinkTokenSet(params.linkToken);
     emit LINKUsdFeedSet(params.linkUsdFeed);
     emit UniswapRouterSet(params.uniswapRouter);
     emit UniswapQuoterV2Set(params.uniswapQuoterV2);
+    emit LinkDecimalsSet(i_linkDecimals);
+    emit LinkUsdFeedDecimalsSet(i_linkUsdFeedDecimals);
+
+    _setFeeAggregator(params.feeAggregator);
+    _setDeadlineDelay(params.deadlineDelay);
+    _setLinkReceiver(params.linkReceiver);
+    _setMaxPerformDataSize(params.maxPerformDataSize);
   }
 
   /// @notice Set the address that `performUpkeep` is called from
@@ -212,7 +231,7 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
       revert Errors.InvalidZeroAddress();
     }
     if (s_forwarder == forwarder) {
-      revert Errors.ForwarderNotUpdated();
+      revert Errors.ValueNotUpdated();
     }
     s_forwarder = forwarder;
     emit ForwarderSet(forwarder);
@@ -222,14 +241,14 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
   /// @dev precondition The caller must have the ASSET_ADMIN_ROLE
   /// @dev precondition The assets must be allowlisted on the FeeAggregator
   /// @dev precondition The asset list length must match the params list length
-  /// @dev precondition The assets oracle addresses must not be the zero address
+  /// @dev precondition The assets feed addresses must not be the zero address
   /// @dev precondition The assets token address must not be the zero address
   /// @dev precondition The assets maxSlippage must be greater than 0
   /// @param assetsToRemove The list of assets to remove swap parameters
   /// @param assetSwapParamsArgs The asset swap parameters arguments
   function applyAssetSwapParamsUpdates(
     address[] calldata assetsToRemove,
-    AssetSwapParamsArgs calldata assetSwapParamsArgs
+    AssetSwapParamsArgs[] calldata assetSwapParamsArgs
   ) external onlyRole(Roles.ASSET_ADMIN_ROLE) {
     // process removals first
     for (uint256 i; i < assetsToRemove.length; ++i) {
@@ -239,38 +258,37 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
       emit AssetSwapParamsRemoved(assetsToRemove[i]);
     }
 
-    // process updates next
-    if (assetSwapParamsArgs.assets.length != assetSwapParamsArgs.assetsSwapParams.length) {
-      revert AssetsSwapParamsMismatch();
-    }
+    IFeeAggregator feeAggregator = s_feeAggregator;
 
-    (bool areAssetsAllowlisted, address nonAllowlistedAsset) =
-      s_feeAggregator.areAssetsAllowlisted(assetSwapParamsArgs.assets);
+    for (uint256 i; i < assetSwapParamsArgs.length; ++i) {
+      SwapParams memory assetSwapParams = assetSwapParamsArgs[i].swapParams;
+      address assetAddress = assetSwapParamsArgs[i].asset;
 
-    if (!areAssetsAllowlisted) {
-      revert Errors.AssetNotAllowlisted(nonAllowlistedAsset);
-    }
-
-    for (uint256 i; i < assetSwapParamsArgs.assetsSwapParams.length; ++i) {
-      SwapParams memory assetSwapParams = assetSwapParamsArgs.assetsSwapParams[i];
-
-      if (address(assetSwapParams.oracle) == address(0)) {
+      if (!feeAggregator.isAssetAllowlisted(assetAddress)) {
+        revert Errors.AssetNotAllowlisted(assetAddress);
+      }
+      if (address(assetSwapParams.usdFeed) == address(0)) {
         revert Errors.InvalidZeroAddress();
       }
       if (assetSwapParams.maxSlippage == 0 || assetSwapParams.maxSlippage >= PercentageMath.PERCENTAGE_FACTOR) {
-        revert InvalidSlippage();
+        revert InvalidSlippage(assetSwapParams.maxSlippage);
       }
       if (
         assetSwapParams.maxPriceDeviation < assetSwapParams.maxSlippage
           || assetSwapParams.maxPriceDeviation >= PercentageMath.PERCENTAGE_FACTOR
       ) {
-        revert InvalidMaxPriceDeviation();
+        revert InvalidMaxPriceDeviation(assetSwapParams.maxPriceDeviation);
+      }
+      if (assetSwapParams.stalenessThreshold == 0) {
+        revert Errors.InvalidZeroAmount();
+      }
+      if (assetSwapParams.minSwapSizeUsd == 0 || assetSwapParams.minSwapSizeUsd > assetSwapParams.maxSwapSizeUsd) {
+        revert InvalidMinSwapSizeUsd();
       }
       if (assetSwapParams.path.length == 0) {
         revert EmptySwapPath();
       }
 
-      address assetAddress = assetSwapParamsArgs.assets[i];
       s_assetSwapParams[assetAddress] = assetSwapParams;
       s_assetHashedSwapPath[assetAddress] = keccak256(assetSwapParams.path);
 
@@ -304,11 +322,18 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
   function _setFeeAggregator(
     address feeAggregator
   ) internal {
-    if (feeAggregator == address(0)) revert Errors.InvalidZeroAddress();
-    if (address(s_feeAggregator) == feeAggregator) {
-      revert Errors.FeeAggregatorNotUpdated();
+    if (feeAggregator == address(0)) {
+      revert Errors.InvalidZeroAddress();
     }
-    s_feeAggregator = FeeAggregator(payable(feeAggregator));
+    if (address(s_feeAggregator) == feeAggregator) {
+      revert Errors.ValueNotUpdated();
+    }
+    if (!IERC165(feeAggregator).supportsInterface(type(IFeeAggregator).interfaceId)) {
+      revert Errors.InvalidFeeAggregator(feeAggregator);
+    }
+
+    s_feeAggregator = IFeeAggregator(feeAggregator);
+
     emit FeeAggregatorSet(feeAggregator);
   }
 
@@ -330,7 +355,7 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
     uint96 deadlineDelay
   ) internal {
     if (s_deadlineDelay == deadlineDelay) {
-      revert DeadlineDelayNotUpdated();
+      revert Errors.ValueNotUpdated();
     }
     if (deadlineDelay < MIN_DEADLINE_DELAY) {
       revert DeadlineDelayTooLow(deadlineDelay, MIN_DEADLINE_DELAY);
@@ -341,6 +366,39 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
 
     s_deadlineDelay = deadlineDelay;
     emit DeadlineDelaySet(deadlineDelay);
+  }
+
+  /// @notice Sets the maximum size of the perform data passed to the performUpkeep function
+  /// @dev precondition - The caller must have the DEFAULT_ADMIN_ROLE
+  /// @param maxPerformDataSize The maximum size of the perform data
+  function setMaxPerformDataSize(
+    uint256 maxPerformDataSize
+  ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    _setMaxPerformDataSize(maxPerformDataSize);
+  }
+
+  /// @notice Sets the maximum size of the perform data passed to the performUpkeep function
+  /// @dev precondition - The new maximum size must be greater than 0
+  /// @dev precondition - The new maximum size must different than the old one
+  /// @param maxPerformDataSize The maximum size of the perform data
+  function _setMaxPerformDataSize(
+    uint256 maxPerformDataSize
+  ) internal {
+    if (maxPerformDataSize == 0) {
+      revert Errors.InvalidZeroAmount();
+    }
+    if (maxPerformDataSize == s_maxPerformDataSize) {
+      revert Errors.ValueNotUpdated();
+    }
+
+    s_maxPerformDataSize = maxPerformDataSize;
+    emit MaxPerformDataSizeSet(maxPerformDataSize);
+  }
+
+  /// @notice Getter function to retrieve the maximum perform data size
+  /// @return maxPrformDataSize the maximum data size that the performUpkeep function accepts
+  function getMaxPerformDataSize() external view returns (uint256 maxPrformDataSize) {
+    return s_maxPerformDataSize;
   }
 
   /// @notice Getter function to retrieve the LINK/USD feed
@@ -430,7 +488,7 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
       revert Errors.InvalidZeroAddress();
     }
     if (linkReceiver == s_linkReceiver) {
-      revert LinkReceiverNotUpdated();
+      revert Errors.ValueNotUpdated();
     }
 
     s_linkReceiver = linkReceiver;
@@ -451,20 +509,28 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
     IV3SwapRouter.ExactInputParams[] memory swapInputs = new IV3SwapRouter.ExactInputParams[](allowlistedAssets.length);
     address receiver = s_linkReceiver;
     uint256 idx;
-    uint256 linkUSDPrice = _getValidatedAssetPrice(i_linkUsdFeed);
+    uint256 linkUSDPrice = _getValidatedAssetPrice(address(i_linkToken), i_linkUsdFeed);
+    // The fixed size of the performData is 3 * 32 = 96 bytes corresponding to:
+    // - slot 0: the offset to the encoded data
+    // - slot 1: the deadlineDelay
+    // - slot 2: the length of the swapInputs array
+    uint256 performDataSize = 96;
 
     for (uint256 i; i < allowlistedAssets.length; ++i) {
       address asset = allowlistedAssets[i];
 
       SwapParams memory swapParams = s_assetSwapParams[asset];
 
-      if (swapParams.oracle == AggregatorV3Interface(address(0))) {
+      if (swapParams.usdFeed == AggregatorV3Interface(address(0))) {
         continue;
       }
 
-      (uint256 assetPrice, uint256 updatedAt) = _getAssetPrice(swapParams.oracle);
+      (uint256 assetPrice, uint256 updatedAt) = _getAssetPrice(swapParams.usdFeed);
 
-      if (assetPrice == 0 || updatedAt < block.timestamp - STALENESS_THRESHOLD) continue;
+      if (assetPrice == 0 || updatedAt < block.timestamp - swapParams.stalenessThreshold) {
+        continue;
+      }
+
       uint256 assetUnit = 10 ** IERC20Metadata(asset).decimals();
 
       // 1) Get the current asset value in USD available in the FeeAggregator
@@ -479,11 +545,11 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
         // 3) Determine the swap amountIn
         uint256 swapAmountIn = Math.min(swapParams.maxSwapSizeUsd * assetUnit, availableAssetUsdValue) / assetPrice;
 
-        // 4) Quote the amountOut from both Uniswap V3 quoter and CL oracle price feed for all ADTs
+        // 4) Quote the amountOut from both Uniswap V3 quoter and CL price feed for all ADTs
         // except LINK
         uint256 amountOutUniswapQuote;
         uint256 amountOutCLPriceFeedQuote =
-          _convertToLink(swapAmountIn, assetPrice, linkUSDPrice, IERC20Metadata(asset));
+          _convertToLink(swapAmountIn, assetPrice, swapParams.usdFeed.decimals(), linkUSDPrice, IERC20Metadata(asset));
 
         if (asset != address(i_linkToken)) {
           (amountOutUniswapQuote,,,) = i_uniswapQuoterV2.quoteExactInput(swapParams.path, swapAmountIn);
@@ -498,11 +564,29 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
           }
         }
 
+        // We increment the performDataSize by:
+        // - 6 * 32 = 192 bytes corresponding to:
+        //    - slot 3: the offset to the struct data
+        //    - slot 4: the offset to the path
+        //    - slot 5: the recipient
+        //    - slot 6: the amountIn
+        //    - slot 7: the amountOutMinimum
+        //    - slot 8: the path length
+        // - The number of slots required for the path:
+        //    - path.length / 32 * 32 -> the rounded down number of slots required
+        //    - path.length % 32 > 0 ? 32 : 0 -> +1 slot if the path length is not a multiple of 32
+        performDataSize += 192 + (swapParams.path.length / 32) * 32 + (swapParams.path.length % 32 > 0 ? 32 : 0);
+
+        // 6) If the performDataSize exceeds the maximum size, break out of the loop
+        if (performDataSize > s_maxPerformDataSize) {
+          break;
+        }
+
         swapInputs[idx++] = IV3SwapRouter.ExactInputParams({
           path: swapParams.path,
           recipient: receiver,
           amountIn: swapAmountIn,
-          // 6) Determine the minimum amount of juels we expect to get back by applying slippage to
+          // 7) Determine the minimum amount of juels we expect to get back by applying slippage to
           // the greater of two quotes.
           amountOutMinimum: Math.max(amountOutUniswapQuote, amountOutCLPriceFeedQuote).percentMul(
             PercentageMath.PERCENTAGE_FACTOR - swapParams.maxSlippage
@@ -544,32 +628,31 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
 
     bool success;
     address linkReceiver = s_linkReceiver;
-    uint256 linkPriceFromFeed = _getValidatedAssetPrice(i_linkUsdFeed);
+    uint256 linkPriceFromFeed = _getValidatedAssetPrice(address(i_linkToken), i_linkUsdFeed);
 
-    address[] memory assets = new address[](swapInputs.length);
-    uint256[] memory amounts = new uint256[](swapInputs.length);
+    Common.AssetAmount[] memory assetAmounts = new Common.AssetAmount[](swapInputs.length);
 
     for (uint256 i; i < swapInputs.length; ++i) {
-      assets[i] = address(bytes20(swapInputs[i].path));
-      amounts[i] = swapInputs[i].amountIn;
+      assetAmounts[i] =
+        Common.AssetAmount({asset: address(bytes20(swapInputs[i].path)), amount: swapInputs[i].amountIn});
     }
 
     IFeeAggregator feeAggregator = s_feeAggregator;
 
-    feeAggregator.transferForSwap(address(this), assets, amounts);
+    feeAggregator.transferForSwap(address(this), assetAmounts);
 
     // This may run into out of gas errors but the likelihood is low as there
     // will not be too many assets to swap to LINK
     for (uint256 i; i < swapInputs.length; ++i) {
       bytes memory assetSwapPath = swapInputs[i].path;
-      address asset = assets[i];
+      address asset = assetAmounts[i].asset;
 
       if (keccak256(assetSwapPath) != s_assetHashedSwapPath[asset]) {
         revert InvalidSwapPath();
       }
 
       if (swapInputs[i].recipient != linkReceiver) {
-        revert FeeRecipientMismatch();
+        revert FeeRecipientMismatch(swapInputs[i].recipient);
       }
 
       // Pull tokens from the FeeAggregator
@@ -626,40 +709,52 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
     amountOut = i_uniswapRouter.exactInput(swapInput);
 
     SwapParams memory swapParams = s_assetSwapParams[asset];
-    uint256 assetPriceFromPriceFeed = _getValidatedAssetPrice(swapParams.oracle);
-    uint256 linkAmountOutFromPriceFeed =
-      _convertToLink(swapInput.amountIn, assetPriceFromPriceFeed, linkPriceFromFeed, IERC20Metadata(asset));
+    uint256 assetPriceFromPriceFeed = _getValidatedAssetPrice(asset, swapParams.usdFeed);
+    uint256 linkAmountOutFromPriceFeed = _convertToLink(
+      swapInput.amountIn,
+      assetPriceFromPriceFeed,
+      swapParams.usdFeed.decimals(),
+      linkPriceFromFeed,
+      IERC20Metadata(asset)
+    );
 
     if (
       amountOut < linkAmountOutFromPriceFeed.percentMul(PercentageMath.PERCENTAGE_FACTOR - swapParams.maxPriceDeviation)
     ) {
-      revert InsufficientAmountReceived();
+      revert InsufficientAmountReceived(
+        amountOut,
+        linkAmountOutFromPriceFeed.percentMul(PercentageMath.PERCENTAGE_FACTOR - swapParams.maxPriceDeviation)
+      );
     }
     return amountOut;
   }
 
   /// @notice Helper function to fetch an asset price
-  /// @param oracle The oracle to fetch the price from
+  /// @param usdFeed The USD price feed to fetch the price from
   /// @return assetPrice The asset price
   /// @return updatedAtTimestamp Timestamp at which the price was last updated
   function _getAssetPrice(
-    AggregatorV3Interface oracle
+    AggregatorV3Interface usdFeed
   ) private view returns (uint256 assetPrice, uint256 updatedAtTimestamp) {
-    (, int256 answer,, uint256 updatedAt,) = oracle.latestRoundData();
+    (, int256 answer,, uint256 updatedAt,) = usdFeed.latestRoundData();
     return (answer.toUint256(), updatedAt);
   }
 
-  /// @notice Helper function to fetch the LINK price, with oracle staleness & answer validation
-  /// @param oracle The oracle to fetch the price from
+  /// @notice Helper function to fetch the LINK price, with feed staleness & answer validation
+  /// @param asset The asset to fetch the price for
+  /// @param usdFeed The USD price feed to fetch the price from
   /// @return assetPrice The asset price
   function _getValidatedAssetPrice(
-    AggregatorV3Interface oracle
+    address asset,
+    AggregatorV3Interface usdFeed
   ) private view returns (uint256 assetPrice) {
-    (uint256 answer, uint256 updatedAt) = _getAssetPrice(oracle);
+    (uint256 answer, uint256 updatedAt) = _getAssetPrice(usdFeed);
 
-    if (answer == 0) revert Errors.ZeroOracleData();
-    if (updatedAt < block.timestamp - STALENESS_THRESHOLD) {
-      revert Errors.StaleOracleData();
+    if (answer == 0) {
+      revert Errors.ZeroFeedData();
+    }
+    if (updatedAt < block.timestamp - s_assetSwapParams[asset].stalenessThreshold) {
+      revert Errors.StaleFeedData();
     }
 
     return answer;
@@ -669,21 +764,62 @@ contract SwapAutomator is ITypeAndVersion, PausableWithAccessControl, Automation
   /// @param assetAmount The amount to convert
   /// @param asset The asset to convert
   /// @param assetPrice The asset price in USD
+  /// @param assetFeedDecimals The asset feed decimals
   /// @param linkUSDPrice The LINK price in USD
   /// @return linkAmount The converted amount in Juels
   /* solhint-disable-next-line chainlink-solidity/explicit-returns */
   function _convertToLink(
     uint256 assetAmount,
     uint256 assetPrice,
+    uint256 assetFeedDecimals,
     uint256 linkUSDPrice,
     IERC20Metadata asset
   ) private view returns (uint256 linkAmount) {
-    uint256 tokenDecimals = asset.decimals();
+    // Scale feed decimals
+    // In order to account for different decimals between the asset and the LINK/USD feed and avoid losing precision, we
+    // scale the smallest decimal feed to the largest one.
+    if (assetFeedDecimals > i_linkUsdFeedDecimals) {
+      linkUSDPrice = linkUSDPrice * 10 ** (assetFeedDecimals - i_linkUsdFeedDecimals);
+    } else if (assetFeedDecimals < i_linkUsdFeedDecimals) {
+      assetPrice = assetPrice * 10 ** (i_linkUsdFeedDecimals - assetFeedDecimals);
+    }
 
-    if (tokenDecimals < LINK_DECIMALS) {
-      return (assetAmount * assetPrice * 10 ** (LINK_DECIMALS - tokenDecimals)) / linkUSDPrice;
+    uint256 tokenDecimals = asset.decimals();
+    // Once prices are scaled, we can convert the asset amount to LINK.
+    // Since the returned ammount is in LINK, token decimals must also be taken into consideration to scale the result
+    // up or down.
+    // Note: asset price & link USD price are normalized to the same units from the previous step.
+    if (tokenDecimals < i_linkDecimals) {
+      // X = linkDecimals
+      // Y = tokenDecimals
+      // Z = decimals for assetPrice & linkPrice
+      // AA = assetAmount
+      // LP = linkPrice
+      // AP = assetPrice
+
+      // (AA * 10**Y * AP * 10**Z * 10**(X - Y)) / (LP * 10**Z)
+      // (AA * 10**(Y + X - Y) * AP * 10**Z) / (LP * 10**Z)
+      // (AA * 10**X * AP * 10**Z) / (LP * 10**Z)
+      // (AA * 10**X) * (AP * 10**Z) / (LP * 10**Z)
+      // (AA * 10**X) * (AP / LP)
+      return (assetAmount * assetPrice * 10 ** (i_linkDecimals - tokenDecimals)) / linkUSDPrice;
     } else {
-      return (assetAmount * assetPrice) / linkUSDPrice / 10 ** (tokenDecimals - LINK_DECIMALS);
+      // X = linkDecimals
+      // Y = tokenDecimals
+      // Z = decimals for assetPrice & linkPrice
+      // AA = assetAmount
+      // LP = linkPrice
+      // AP = assetPrice
+
+      // ((AA * 10**Y * AP * 10**Z) / (LP * 10**Z)) / (10**(Y - X))
+      // ((AA * 10**Y * AP) / LP) / (10**(Y - X))
+      // ((AA * 10**Y) * (AP / LP)) / (10**(Y - X))
+      // ((AA * (AP / LP)) * 10**Y) / (10**(Y - X))
+      // (AA * (AP / LP) * 10**(Y - (Y - X)))
+      // (AA * (AP / LP)) * 10**(Y - Y + X)
+      // (AA * (AP / LP)) * 10**X
+      // (AA * 10**X) * (AP / LP)
+      return ((assetAmount * assetPrice) / linkUSDPrice) / (10 ** (tokenDecimals - i_linkDecimals));
     }
   }
 }

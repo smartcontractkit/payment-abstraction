@@ -1,5 +1,0 @@
-onTokenTransfer.t.sol
-├── given the caller is not the LINK token contract
-│   └── it should revert
-└── given the caller is the LINK token contract
-    └── it should transfer the tokens to the reserves contract

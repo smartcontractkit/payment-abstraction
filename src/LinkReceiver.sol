@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {Errors} from "src/libraries/Errors.sol";
 
@@ -13,7 +13,8 @@ abstract contract LinkReceiver is IERC677Receiver {
   event LinkTokenSet(address indexed linkToken);
 
   /// @notice This error is thrown when the sender is not the LINK token
-  error SenderNotLinkToken();
+  /// @param sender The address of the sender
+  error SenderNotLinkToken(address sender);
 
   /// @notice The link token
   IERC20 internal immutable i_linkToken;
@@ -37,7 +38,9 @@ abstract contract LinkReceiver is IERC677Receiver {
   /// @dev Implementing onTokenTransfer only to maximize Link receiving compatibility. No extra logic added.
   /// @dev precondition The sender must be the LINK token
   function onTokenTransfer(address, uint256, bytes calldata) external view {
-    if (msg.sender != address(i_linkToken)) revert SenderNotLinkToken();
+    if (msg.sender != address(i_linkToken)) {
+      revert SenderNotLinkToken(msg.sender);
+    }
   }
 
   /// @notice Getter function to retrieve the LINK token address

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {FeeAggregator} from "src/FeeAggregator.sol";
 import {FeeRouter} from "src/FeeRouter.sol";
@@ -13,8 +13,8 @@ import {MockUniswapQuoterV2} from "test/mocks/MockUniswapQuoterV2.sol";
 import {MockUniswapRouter} from "test/mocks/MockUniswapRouter.sol";
 import {MockWrappedNative} from "test/mocks/MockWrappedNative.sol";
 
-import {MockLinkToken} from "@chainlink/contracts/src/v0.8/mocks/MockLinkToken.sol";
 import {MockERC20} from "forge-std/mocks/MockERC20.sol";
+import {MockLinkToken} from "test/mocks/MockLinkToken.sol";
 
 // @notice Base contract for integration tests. Tests the interactions between multiple contracts in a simulated
 // environment.
@@ -34,6 +34,8 @@ abstract contract BaseIntegrationTest is BaseTest {
   MockUniswapRouter internal s_mockUniswapRouter;
   MockUniswapQuoterV2 internal s_mockUniswapQuoterV2;
 
+  address[] internal s_serviceProviders;
+
   modifier givenAssetIsAllowlisted(
     address asset
   ) {
@@ -42,7 +44,7 @@ abstract contract BaseIntegrationTest is BaseTest {
     address[] memory assets = new address[](1);
     assets[0] = asset;
 
-    _changePrank(ASSET_ADMIN);
+    _changePrank(i_assetAdmin);
     s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), assets);
     _changePrank(msgSender);
     _;
@@ -68,9 +70,9 @@ abstract contract BaseIntegrationTest is BaseTest {
     s_feeAggregatorReceiver = new FeeAggregator(
       FeeAggregator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
+        admin: i_owner,
         linkToken: address(s_mockLINK),
-        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT,
+        ccipRouterClient: i_mockCCIPRouterClient,
         wrappedNativeToken: address(s_mockWETH)
       })
     );
@@ -78,7 +80,7 @@ abstract contract BaseIntegrationTest is BaseTest {
     s_feeRouter = new FeeRouter(
       FeeRouter.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
+        admin: i_owner,
         feeAggregator: address(s_feeAggregatorReceiver),
         linkToken: address(s_mockLINK),
         wrappedNativeToken: address(s_mockWETH)
@@ -88,50 +90,66 @@ abstract contract BaseIntegrationTest is BaseTest {
     s_swapAutomator = new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
+        admin: i_owner,
         linkToken: address(s_mockLINK),
         feeAggregator: address(s_feeAggregatorReceiver),
         linkUsdFeed: address(s_mockLinkUsdFeed),
         uniswapRouter: address(s_mockUniswapRouter),
         uniswapQuoterV2: address(s_mockUniswapQuoterV2),
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
 
     s_reserves = new Reserves(
       Reserves.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
+        admin: i_owner,
         linkToken: address(s_mockLINK)
       })
     );
 
-    vm.startPrank(OWNER);
-    s_feeAggregatorReceiver.grantRole(Roles.ASSET_ADMIN_ROLE, ASSET_ADMIN);
-    s_feeAggregatorReceiver.grantRole(Roles.PAUSER_ROLE, PAUSER);
-    s_feeAggregatorReceiver.grantRole(Roles.WITHDRAWER_ROLE, WITHDRAWER);
+    s_serviceProviders.push(i_serviceProvider1);
+    s_serviceProviders.push(i_serviceProvider2);
+
+    vm.startPrank(i_owner);
+    s_feeAggregatorReceiver.grantRole(Roles.ASSET_ADMIN_ROLE, i_assetAdmin);
+    s_feeAggregatorReceiver.grantRole(Roles.PAUSER_ROLE, i_pauser);
+    s_feeAggregatorReceiver.grantRole(Roles.WITHDRAWER_ROLE, i_withdrawer);
     s_feeAggregatorReceiver.grantRole(Roles.SWAPPER_ROLE, address(s_swapAutomator));
-    s_feeAggregatorReceiver.grantRole(Roles.UNPAUSER_ROLE, UNPAUSER);
-    s_feeRouter.grantRole(Roles.BRIDGER_ROLE, BRIDGER);
-    s_feeRouter.grantRole(Roles.PAUSER_ROLE, PAUSER);
-    s_feeRouter.grantRole(Roles.WITHDRAWER_ROLE, WITHDRAWER);
-    s_feeRouter.grantRole(Roles.UNPAUSER_ROLE, UNPAUSER);
-    s_reserves.grantRole(Roles.PAUSER_ROLE, PAUSER);
-    s_reserves.grantRole(Roles.UNPAUSER_ROLE, UNPAUSER);
+    s_feeAggregatorReceiver.grantRole(Roles.UNPAUSER_ROLE, i_unpauser);
+    s_feeRouter.grantRole(Roles.BRIDGER_ROLE, i_bridger);
+    s_feeRouter.grantRole(Roles.PAUSER_ROLE, i_pauser);
+    s_feeRouter.grantRole(Roles.WITHDRAWER_ROLE, i_withdrawer);
+    s_feeRouter.grantRole(Roles.UNPAUSER_ROLE, i_unpauser);
+    s_reserves.grantRole(Roles.PAUSER_ROLE, i_pauser);
+    s_reserves.grantRole(Roles.UNPAUSER_ROLE, i_unpauser);
+    s_reserves.grantRole(Roles.EARMARK_MANAGER_ROLE, i_earmarkManager);
+
+    // Add contracts to the list of contracts that are EmergencyWithdrawer
+    s_commonContracts[CommonContracts.EMERGENCY_WITHDRAWER].push(address(s_feeAggregatorReceiver));
+    s_commonContracts[CommonContracts.EMERGENCY_WITHDRAWER].push(address(s_feeRouter));
+    s_commonContracts[CommonContracts.EMERGENCY_WITHDRAWER].push(address(s_reserves));
+
+    // Add contracts to the list of contracts that are LinkReceiver
+    s_commonContracts[CommonContracts.LINK_RECEIVER].push(address(s_feeAggregatorReceiver));
+    s_commonContracts[CommonContracts.LINK_RECEIVER].push(address(s_feeRouter));
+    s_commonContracts[CommonContracts.LINK_RECEIVER].push(address(s_reserves));
 
     vm.label(address(s_feeAggregatorReceiver), "FeeAggregatorReceiver");
     vm.label(address(s_feeRouter), "FeeRouter");
-    vm.label(OWNER, "OWNER");
-    vm.label(PAUSER, "PAUSER");
-    vm.label(ASSET_ADMIN, "ASSET_ADMIN");
+    vm.label(i_owner, "Owner");
+    vm.label(i_unpauser, "Unpauser");
+    vm.label(i_assetAdmin, "Asset Admin");
     vm.label(address(s_mockLINK), "Mock LINK");
     vm.label(address(s_mockWETH), "Mock WETH");
-    vm.label(ASSET_2, "ASSET_2");
-    vm.label(MOCK_CCIP_ROUTER_CLIENT, "MOCK_CCIP_ROUTER_CLIENT");
-    vm.label(BRIDGER, "BRIDGER");
-    vm.label(WITHDRAWER, "WITHDRAWER");
-    vm.label(RECEIVER, "RECEIVER");
+    vm.label(address(s_mockUSDC), "Mock USDC");
+    vm.label(address(s_mockWBTC), "Mock WBTC");
+    vm.label(i_mockCCIPRouterClient, "Mock CCIP Router Client");
+    vm.label(i_bridger, "Bridger");
+    vm.label(i_withdrawer, "Withdrawer");
+    vm.label(i_receiver, "Receiver");
     vm.label(address(s_swapAutomator), "SwapAutomator");
     vm.label(address(s_mockLinkUsdFeed), "Mock LINK USD Feed");
     vm.label(address(s_mockUniswapRouter), "Mock Uniswap Router");

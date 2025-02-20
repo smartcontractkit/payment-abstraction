@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {PausableWithAccessControl} from "src/PausableWithAccessControl.sol";
+import {Common} from "src/libraries/Common.sol";
 import {Errors} from "src/libraries/Errors.sol";
 
 import {IERC20} from "@openzeppelin/contracts/interfaces/IERC20.sol";
@@ -27,21 +28,24 @@ abstract contract EmergencyWithdrawer is PausableWithAccessControl {
   constructor(uint48 adminRoleTransferDelay, address admin) PausableWithAccessControl(adminRoleTransferDelay, admin) {}
 
   /// @notice Withdraws assets from the contract to the specfied address
-  /// @dev precondition The contract must be paused
-  /// @dev precondition The caller must have the DEFAULT_ADMIN_ROLE
+  /// @dev precondition - The contract must be paused
+  /// @dev precondition - The caller must have the DEFAULT_ADMIN_ROLE
+  /// @dev precondition - The assetAmounts list must not be empty
   /// @param to The address to transfer the assets to
-  /// @param assets The list of assets to transfer
-  /// @param amounts The list of asset amounts to transfer
+  /// @param assetAmounts The list of assets and amounts to transfer
   function emergencyWithdraw(
     address to,
-    address[] calldata assets,
-    uint256[] calldata amounts
+    Common.AssetAmount[] calldata assetAmounts
   ) external whenPaused onlyRole(DEFAULT_ADMIN_ROLE) {
-    _validateAssetTransferInputs(assets, amounts);
+    if (assetAmounts.length == 0) {
+      revert Errors.EmptyList();
+    }
 
-    for (uint256 i = 0; i < assets.length; i++) {
-      _transferAsset(to, assets[i], amounts[i]);
-      emit AssetEmergencyWithdrawn(to, assets[i], amounts[i]);
+    for (uint256 i; i < assetAmounts.length; ++i) {
+      address asset = assetAmounts[i].asset;
+      uint256 amount = assetAmounts[i].amount;
+      _transferAsset(to, asset, amount);
+      emit AssetEmergencyWithdrawn(to, asset, amount);
     }
   }
 
@@ -71,18 +75,6 @@ abstract contract EmergencyWithdrawer is PausableWithAccessControl {
 
     if (!success) {
       revert FailedNativeTokenTransfer(to, amount, data);
-    }
-  }
-
-  /// @dev Helper function to validate the asset transfer inputs
-  /// @dev precondition The asset list must not be empty
-  /// @dev precondition The asset list and the amount list must have the same length
-  function _validateAssetTransferInputs(address[] calldata assets, uint256[] calldata amounts) internal pure {
-    if (assets.length == 0) {
-      revert Errors.EmptyList();
-    }
-    if (assets.length != amounts.length) {
-      revert Errors.ArrayLengthMismatch();
     }
   }
 

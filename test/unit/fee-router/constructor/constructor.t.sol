@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {FeeRouter} from "src/FeeRouter.sol";
 import {Errors} from "src/libraries/Errors.sol";
@@ -9,9 +9,9 @@ contract HomeFeeAggregatorSender_ConstructorUnitTest is BaseUnitTest {
   function test_constructor() public {
     FeeRouter.ConstructorParams memory params = FeeRouter.ConstructorParams({
       adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-      admin: OWNER,
+      admin: i_owner,
       feeAggregator: address(s_feeAggregatorReceiver),
-      linkToken: MOCK_LINK,
+      linkToken: i_mockLink,
       wrappedNativeToken: s_mockWrappedNativeToken
     });
 
@@ -28,7 +28,7 @@ contract HomeFeeAggregatorSender_ConstructorUnitTest is BaseUnitTest {
     new FeeRouter(
       FeeRouter.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
+        admin: i_owner,
         feeAggregator: address(s_feeAggregatorReceiver),
         linkToken: address(0),
         wrappedNativeToken: s_mockWrappedNativeToken
@@ -39,9 +39,9 @@ contract HomeFeeAggregatorSender_ConstructorUnitTest is BaseUnitTest {
   function test_constructor_RevertWhen_SetFeeAggregatorReceiverToAddressZero() public {
     FeeRouter.ConstructorParams memory params = FeeRouter.ConstructorParams({
       adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-      admin: OWNER,
+      admin: i_owner,
       feeAggregator: address(0),
-      linkToken: MOCK_LINK,
+      linkToken: i_mockLink,
       wrappedNativeToken: s_mockWrappedNativeToken
     });
 

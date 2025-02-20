@@ -1,7 +1,7 @@
 withdrawNonAllowlistedAssets.t.sol
-├── given the contract is not paused
-│   └── it should revert
-└── given the contract is paused
+├─ given the contract is paused
+│  └─ it should revert
+└─ given the contract is not paused
     ├── when the caller does not have the DEFAULT_ADMIN_ROLE
     │   └── it should revert
     └── when the caller has the DEFAULT_ADMIN_ROLE

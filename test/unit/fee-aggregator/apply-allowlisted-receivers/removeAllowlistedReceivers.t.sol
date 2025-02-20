@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {FeeAggregator} from "src/FeeAggregator.sol";
 import {Errors} from "src/libraries/Errors.sol";
@@ -8,7 +8,7 @@ import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 contract RemoveAllowlistedReceiversUnitTest is BaseUnitTest {
-  bytes constant INVALID_RECEIVER = bytes("123");
+  bytes constant INVALID_i_receiver = bytes("123");
 
   function setUp() public {
     FeeAggregator.AllowlistedReceivers[] memory removedReceivers = new FeeAggregator.AllowlistedReceivers[](1);
@@ -20,7 +20,7 @@ contract RemoveAllowlistedReceiversUnitTest is BaseUnitTest {
     removedReceiver.receivers[1] = RECEIVER_2;
     removedReceivers[0] = removedReceiver;
 
-    _changePrank(OWNER);
+    _changePrank(i_owner);
     s_feeAggregatorReceiver.applyAllowlistedReceiverUpdates(emptyReceivers, removedReceivers);
   }
 
@@ -30,11 +30,11 @@ contract RemoveAllowlistedReceiversUnitTest is BaseUnitTest {
 
     FeeAggregator.AllowlistedReceivers memory removedReceiver =
       FeeAggregator.AllowlistedReceivers({remoteChainSelector: SOURCE_CHAIN_1, receivers: new bytes[](1)});
-    removedReceiver.receivers[0] = INVALID_RECEIVER;
+    removedReceiver.receivers[0] = INVALID_i_receiver;
     removedReceivers[0] = removedReceiver;
 
     vm.expectRevert(
-      abi.encodeWithSelector(FeeAggregator.ReceiverNotAllowlisted.selector, SOURCE_CHAIN_1, INVALID_RECEIVER)
+      abi.encodeWithSelector(FeeAggregator.ReceiverNotAllowlisted.selector, SOURCE_CHAIN_1, INVALID_i_receiver)
     );
     s_feeAggregatorReceiver.applyAllowlistedReceiverUpdates(removedReceivers, emptyReceivers);
   }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {IERC677Receiver} from "../shared/interfaces/IERC677Receiver.sol";
+import {IERC677Receiver} from "@chainlink/contracts/src/v0.8/shared/interfaces/IERC677Receiver.sol";
 
 contract MockLinkToken {
   uint256 private constant TOTAL_SUPPLY = 1_000_000_000 * 1e18;
@@ -22,6 +22,16 @@ contract MockLinkToken {
     return true;
   }
 
+  // a very simple transferFrom function with no allowance check and events
+  function transferFrom(address _from, address _to, uint256 _value) public returns (bool) {
+    require(balances[_from] >= _value, "Insufficient balance");
+
+    balances[_from] -= _value;
+    balances[_to] += _value;
+
+    return true;
+  }
+
   function setBalance(address _address, uint256 _value) external returns (bool) {
     balances[_address] = _value;
     return true;
@@ -31,6 +41,10 @@ contract MockLinkToken {
     address _address
   ) external view returns (uint256) {
     return balances[_address];
+  }
+
+  function decimals() public pure returns (uint8) {
+    return 8;
   }
 
   function transferAndCall(address _to, uint256 _value, bytes calldata _data) public returns (bool success) {

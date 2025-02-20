@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {SwapAutomator} from "src/SwapAutomator.sol";
 import {Errors} from "src/libraries/Errors.sol";
@@ -32,7 +32,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
   }
 
   function setUp() public {
-    _changePrank(FORWARDER);
+    _changePrank(i_forwarder);
   }
 
   function test_performUpkeep_RevertWhen_ContractIsPaused() public givenContractIsPaused(address(s_swapAutomator)) {
@@ -85,9 +85,9 @@ contract PerformUpkeepForkTest is BaseForkTest {
 
     uint256 amountInLINK = IERC20(LINK).balanceOf(address(s_feeAggregatorReceiver));
 
-    uint256 feeReceiverBalanceBefore = IERC20(LINK).balanceOf(RECEIVER);
+    uint256 feeReceiverBalanceBefore = IERC20(LINK).balanceOf(i_receiver);
     s_swapAutomator.performUpkeep(data);
-    assertEq(IERC20(LINK).balanceOf(RECEIVER), feeReceiverBalanceBefore + amountInLINK);
+    assertEq(IERC20(LINK).balanceOf(i_receiver), feeReceiverBalanceBefore + amountInLINK);
   }
 
   function test_performUpkeep_swapWithPriceFeedValidation_RevertWhen_NotSelfCalled()
@@ -105,7 +105,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
 
   /**
    * Revert when the forwarder is corrupted and forward any recipent address that's different to
-   * FeeAggregator's recipent address.
+   * FeeAggregator's recipient address.
    */
   function test_performUpkeep_RevertWhen_RecipentMismatch()
     public
@@ -119,8 +119,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
       abi.decode(data, (IV3SwapRouter.ExactInputParams[], uint256));
     swapInputs[0].recipient = address(0);
     data = abi.encode(swapInputs, deadline);
-
-    vm.expectRevert(SwapAutomator.FeeRecipientMismatch.selector);
+    vm.expectRevert(abi.encodeWithSelector(SwapAutomator.FeeRecipientMismatch.selector, swapInputs[0].recipient));
     s_swapAutomator.performUpkeep(data);
   }
 
@@ -153,7 +152,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
     uint256 amountInLink = IERC20(LINK).balanceOf(address(s_feeAggregatorReceiver));
 
     vm.mockCall(
-      LINK, abi.encodeWithSelector(LinkTokenInterface.transfer.selector, RECEIVER, amountInLink), abi.encode(false)
+      LINK, abi.encodeWithSelector(LinkTokenInterface.transfer.selector, i_receiver, amountInLink), abi.encode(false)
     );
 
     vm.expectRevert();
@@ -170,7 +169,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
 
     uint256 amountInWeth = IERC20(WETH).balanceOf(address(s_feeAggregatorReceiver));
     uint256 amountInUsdc = IERC20(USDC).balanceOf(address(s_feeAggregatorReceiver));
-    uint256 swapValue = _getAssetPrice(s_swapAutomator.getAssetSwapParams(WETH).oracle) * amountInWeth;
+    uint256 swapValue = _getAssetPrice(s_swapAutomator.getAssetSwapParams(WETH).usdFeed) * amountInWeth;
 
     // Mock Uniswap logic
     vm.mockCallRevert(
@@ -180,12 +179,12 @@ contract PerformUpkeepForkTest is BaseForkTest {
     );
     // Ignore topic 3 as the value will only be know post swap
     vm.expectEmit(true, true, false, false, address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapped(RECEIVER, WETH, amountInWeth, 0);
+    emit SwapAutomator.AssetSwapped(i_receiver, WETH, amountInWeth, 0);
     vm.expectEmit(address(s_swapAutomator));
     emit SwapAutomator.AssetSwapFailure(USDC, swapInputs[1]);
     s_swapAutomator.performUpkeep(data);
 
-    uint256 linkBalanceValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(RECEIVER);
+    uint256 linkBalanceValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(i_receiver);
     uint256 minValue = swapValue.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
 
     assert(linkBalanceValue >= minValue);
@@ -208,7 +207,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
   function test_performUpkeep_SingleSwapSinglePool_StaleFeedPrice() public givenAssetEligibleForSwap(WETH) {
     // GIVEN
     (, bytes memory data) = _checkUpkeepWithSimulation();
-    AggregatorV3Interface wethFeed = s_swapAutomator.getAssetSwapParams(WETH).oracle;
+    AggregatorV3Interface wethFeed = s_swapAutomator.getAssetSwapParams(WETH).usdFeed;
     uint256 amountIn = IERC20(WETH).balanceOf(address(s_feeAggregatorReceiver));
     uint256 abtAssetPrice = _getAssetPrice(wethFeed);
 
@@ -221,7 +220,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
 
     /**
      * EXPECTED:
-     * 1. StaleOracleData() error should be swallowed and the ETH swap and transfer
+     * 1. StaleFeedData() error should be swallowed and the ETH swap and transfer
      * should be reverted.
      * 2. Since AllSwaps within performUpkeep only contain one failing swap, AllSwapsFailed() error
      * should be thrown.
@@ -250,13 +249,13 @@ contract PerformUpkeepForkTest is BaseForkTest {
     // GIVEN
     (, bytes memory data) = _checkUpkeepWithSimulation();
     uint256 amountIn = IERC20(WETH).balanceOf(address(s_feeAggregatorReceiver));
-    uint256 abtAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(WETH).oracle);
-    uint256 amountOutFromOracle = _getExpectedAmountOutLinkFromOracle(amountIn, abtAssetPrice, IERC20Metadata(WETH));
+    uint256 abtAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(WETH).usdFeed);
+    uint256 amountOutFromFeed = _getExpectedAmountOutLinkFromFeed(amountIn, abtAssetPrice, IERC20Metadata(WETH));
 
     // WHEN: Uniswap Router returns amountOut that's below minimum accepted post-swap deviation
     // threshold.
     uint256 mockAmountBelowDeviationThreshold =
-      amountOutFromOracle.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_PRICE_DEVIATION * 2);
+      amountOutFromFeed.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_PRICE_DEVIATION * 2);
     vm.mockCall(
       UNISWAP_ROUTER,
       abi.encodeWithSelector(IV3SwapRouter.exactInput.selector),
@@ -300,16 +299,16 @@ contract PerformUpkeepForkTest is BaseForkTest {
 
     uint256 amountInWeth = IERC20(WETH).balanceOf(address(s_feeAggregatorReceiver));
     uint256 amountInUsdc = IERC20(USDC).balanceOf(address(s_feeAggregatorReceiver));
-    uint256 wethAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(WETH).oracle);
-    uint256 usdcAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(USDC).oracle);
+    uint256 wethAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(WETH).usdFeed);
+    uint256 usdcAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(USDC).usdFeed);
     uint256 usdcSwapValue = usdcAssetPrice * amountInUsdc;
 
-    uint256 amountOutWethFromOracle =
-      _getExpectedAmountOutLinkFromOracle(amountInWeth, wethAssetPrice, IERC20Metadata(WETH));
+    uint256 amountOutWethFromFeed =
+      _getExpectedAmountOutLinkFromFeed(amountInWeth, wethAssetPrice, IERC20Metadata(WETH));
 
     // WHEN: amountOut for WETH is below deviation threshold.
     uint256 mockAmountOutWETHBelowDeviationThreshold =
-      amountOutWethFromOracle.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_PRICE_DEVIATION * 2);
+      amountOutWethFromFeed.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_PRICE_DEVIATION * 2);
     vm.mockCall(
       UNISWAP_ROUTER,
       abi.encodeWithSelector(IV3SwapRouter.exactInput.selector, swapInputs[0]),
@@ -323,13 +322,13 @@ contract PerformUpkeepForkTest is BaseForkTest {
      * 2. swap for USDC should succeed.
      */
     vm.expectEmit(true, true, false, false, address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapped(RECEIVER, USDC, amountInUsdc, 0);
+    emit SwapAutomator.AssetSwapped(i_receiver, USDC, amountInUsdc, 0);
     s_swapAutomator.performUpkeep(data);
 
     // WETH should be transfer back to receiver contract and the allowance should be
     // reverted/decreased.
     // USDC swap should succeed.
-    uint256 linkBalanceValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(RECEIVER);
+    uint256 linkBalanceValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(i_receiver);
     uint256 minValue = usdcSwapValue.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
     assert(linkBalanceValue >= minValue);
 
@@ -343,21 +342,21 @@ contract PerformUpkeepForkTest is BaseForkTest {
   function test_performUpkeep_SingleSwapSinglePool() public givenAssetEligibleForSwap(WETH) {
     (, bytes memory data) = _checkUpkeepWithSimulation();
     uint256 amountIn = IERC20(WETH).balanceOf(address(s_feeAggregatorReceiver));
-    uint256 abtAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(WETH).oracle);
+    uint256 abtAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(WETH).usdFeed);
     uint256 swapValue = abtAssetPrice * amountIn;
     SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(WETH);
     (uint256 amountOutUniswapQuote,,,) = s_swapAutomator.getUniswapQuoterV2().quoteExactInput(swapParams.path, amountIn);
-    uint256 amountOutFromOracle = _getExpectedAmountOutLinkFromOracle(amountIn, abtAssetPrice, IERC20Metadata(WETH));
+    uint256 amountOutFromFeed = _getExpectedAmountOutLinkFromFeed(amountIn, abtAssetPrice, IERC20Metadata(WETH));
 
     // Ignore topic 3 as the value will only be know post swap
     vm.expectEmit(true, true, false, false, address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapped(RECEIVER, WETH, amountIn, 0);
+    emit SwapAutomator.AssetSwapped(i_receiver, WETH, amountIn, 0);
     s_swapAutomator.performUpkeep(data);
 
-    uint256 linkBalanceValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(RECEIVER);
+    uint256 linkBalanceValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(i_receiver);
     uint256 minValue = swapValue.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
     uint256 minAmountOutValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED))
-      * Math.max(amountOutFromOracle, amountOutUniswapQuote).percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
+      * Math.max(amountOutFromFeed, amountOutUniswapQuote).percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
 
     assert(linkBalanceValue >= minValue);
     assert(linkBalanceValue >= minAmountOutValue); //Asserting that the actual swapped LINK
@@ -371,21 +370,21 @@ contract PerformUpkeepForkTest is BaseForkTest {
     (, bytes memory data) = _checkUpkeepWithSimulation();
 
     uint256 amountIn = IERC20(USDC).balanceOf(address(s_feeAggregatorReceiver));
-    uint256 abtAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(USDC).oracle);
+    uint256 abtAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(USDC).usdFeed);
     uint256 swapValue = abtAssetPrice * amountIn;
     SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(USDC);
     (uint256 amountOutUniswapQuote,,,) = s_swapAutomator.getUniswapQuoterV2().quoteExactInput(swapParams.path, amountIn);
-    uint256 amountOutFromOracle = _getExpectedAmountOutLinkFromOracle(amountIn, abtAssetPrice, IERC20Metadata(USDC));
+    uint256 amountOutFromFeed = _getExpectedAmountOutLinkFromFeed(amountIn, abtAssetPrice, IERC20Metadata(USDC));
 
     // Ignore topic 3 as the value will only be know post swap
     vm.expectEmit(true, true, false, false, address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapped(RECEIVER, USDC, amountIn, 0);
+    emit SwapAutomator.AssetSwapped(i_receiver, USDC, amountIn, 0);
     s_swapAutomator.performUpkeep(data);
 
-    uint256 linkBalanceValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(RECEIVER);
+    uint256 linkBalanceValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(i_receiver);
     uint256 minValue = swapValue.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
     uint256 minAmountOutValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED))
-      * Math.max(amountOutFromOracle, amountOutUniswapQuote).percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
+      * Math.max(amountOutFromFeed, amountOutUniswapQuote).percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
 
     assert(linkBalanceValue >= minValue);
     assert(linkBalanceValue >= minAmountOutValue); //Asserting that the actual swapped LINK
@@ -399,35 +398,35 @@ contract PerformUpkeepForkTest is BaseForkTest {
     (, bytes memory data) = _checkUpkeepWithSimulation();
     uint256 amountInWeth = IERC20(WETH).balanceOf(address(s_feeAggregatorReceiver));
     uint256 amountInUsdc = IERC20(USDC).balanceOf(address(s_feeAggregatorReceiver));
-    uint256 wethAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(WETH).oracle);
-    uint256 usdcAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(USDC).oracle);
+    uint256 wethAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(WETH).usdFeed);
+    uint256 usdcAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(USDC).usdFeed);
     uint256 wethSwapValue = wethAssetPrice * amountInWeth;
     uint256 usdcSwapValue = usdcAssetPrice * amountInUsdc;
     uint256 totalSwapValue = wethSwapValue + usdcSwapValue;
     SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(WETH);
     (uint256 amountOutWethUniswapQuote,,,) =
       s_swapAutomator.getUniswapQuoterV2().quoteExactInput(swapParams.path, amountInWeth);
-    uint256 amountOutWethFromOracle =
-      _getExpectedAmountOutLinkFromOracle(amountInWeth, wethAssetPrice, IERC20Metadata(WETH));
+    uint256 amountOutWethFromFeed =
+      _getExpectedAmountOutLinkFromFeed(amountInWeth, wethAssetPrice, IERC20Metadata(WETH));
     swapParams = s_swapAutomator.getAssetSwapParams(USDC);
     (uint256 amountOutUsdcUniswapQuote,,,) =
       s_swapAutomator.getUniswapQuoterV2().quoteExactInput(swapParams.path, amountInUsdc);
-    uint256 amountOutUsdcFromOracle =
-      _getExpectedAmountOutLinkFromOracle(amountInUsdc, usdcAssetPrice, IERC20Metadata(USDC));
+    uint256 amountOutUsdcFromFeed =
+      _getExpectedAmountOutLinkFromFeed(amountInUsdc, usdcAssetPrice, IERC20Metadata(USDC));
 
     // Ignore topic 3 as the value will only be know post swap
     vm.expectEmit(true, true, false, false, address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapped(RECEIVER, WETH, amountInWeth, 0);
+    emit SwapAutomator.AssetSwapped(i_receiver, WETH, amountInWeth, 0);
     vm.expectEmit(true, true, false, false, address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapped(RECEIVER, USDC, amountInUsdc, 0);
+    emit SwapAutomator.AssetSwapped(i_receiver, USDC, amountInUsdc, 0);
     s_swapAutomator.performUpkeep(data);
 
     uint256 linkBalanceValue =
-      _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(address(RECEIVER));
+      _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(address(i_receiver));
     uint256 minValue = totalSwapValue.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
 
-    uint256 totalMinAmountOut = Math.max(amountOutWethUniswapQuote, amountOutWethFromOracle)
-      + Math.max(amountOutUsdcUniswapQuote, amountOutUsdcFromOracle);
+    uint256 totalMinAmountOut = Math.max(amountOutWethUniswapQuote, amountOutWethFromFeed)
+      + Math.max(amountOutUsdcUniswapQuote, amountOutUsdcFromFeed);
     uint256 totalMinAmountOutValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED))
       * totalMinAmountOut.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
 
@@ -448,7 +447,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
     for (uint256 i = 0; i < allowlistedAssets.length; ++i) {
       _dealSwapAmount(allowlistedAssets[i], address(s_feeAggregatorReceiver), MIN_SWAP_SIZE * 2);
       uint256 amountIn = IERC20(allowlistedAssets[i]).balanceOf(address(s_feeAggregatorReceiver));
-      uint256 assetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(allowlistedAssets[i]).oracle);
+      uint256 assetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(allowlistedAssets[i]).usdFeed);
       uint256 swapValue = assetPrice * amountIn;
       totalSwapValue += swapValue;
       uint256 amountOutUniswapQuote;
@@ -456,17 +455,17 @@ contract PerformUpkeepForkTest is BaseForkTest {
         SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(allowlistedAssets[i]);
         (amountOutUniswapQuote,,,) = s_swapAutomator.getUniswapQuoterV2().quoteExactInput(swapParams.path, amountIn);
       }
-      uint256 amountOutFromOracle =
-        _getExpectedAmountOutLinkFromOracle(amountIn, assetPrice, IERC20Metadata(allowlistedAssets[i]));
+      uint256 amountOutFromFeed =
+        _getExpectedAmountOutLinkFromFeed(amountIn, assetPrice, IERC20Metadata(allowlistedAssets[i]));
       totalMinAmountOut +=
-        Math.max(amountOutFromOracle, amountOutUniswapQuote).percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
+        Math.max(amountOutFromFeed, amountOutUniswapQuote).percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
     }
 
     (, bytes memory data) = _checkUpkeepWithSimulation();
     s_swapAutomator.performUpkeep(data);
 
     uint256 linkBalanceValue =
-      _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(address(RECEIVER));
+      _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED)) * IERC20(LINK).balanceOf(address(i_receiver));
     uint256 minValue = totalSwapValue.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
     uint256 totalMinAmountOutValue = _getAssetPrice(AggregatorV3Interface(LINK_USD_FEED))
       * totalMinAmountOut.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_SLIPPAGE);
@@ -483,8 +482,110 @@ contract PerformUpkeepForkTest is BaseForkTest {
     }
   }
 
+  function test_performUpkeep_Usdt_TradeSuccess() public givenAssetEligibleForSwap(USDT) {
+    // 1) Get the performData by simulating checkUpkeep()
+    (bool shouldExecute, bytes memory performData) = _checkUpkeepWithSimulation();
+    assertTrue(shouldExecute, "Should have upkeep for USDT trade test");
+
+    // 2) Record aggregator's USDT balance before swapping
+    uint256 usdtBalanceBefore = IERC20(USDT).balanceOf(address(s_feeAggregatorReceiver));
+    assertGt(usdtBalanceBefore, 0, "Expected aggregator to hold some USDT beforehand");
+
+    // 3) Expect a SwapAutomator.AssetSwapped event for USDT
+    //    (We ignore the unindexed fields by setting checkData = false.)
+    vm.expectEmit(true, true, true, false, address(s_swapAutomator));
+    emit SwapAutomator.AssetSwapped(i_receiver, USDT, 0, 0);
+
+    // 4) Execute the swap
+    s_swapAutomator.performUpkeep(performData);
+
+    // 5) Verify aggregator’s USDT was swapped out
+    assertEq(
+      IERC20(USDT).balanceOf(address(s_feeAggregatorReceiver)), 0, "Expected aggregator to have 0 USDT after swap"
+    );
+
+    // 6) Confirm the SwapAutomator recorded a “latest swap timestamp” for USDT
+    assertEq(s_swapAutomator.getLatestSwapTimestamp(USDT), block.timestamp, "USDT lastSwapTimestamp mismatch");
+  }
+
+  function test_performUpkeep_MultipleSwaps_PartialFailurePostSwapAmountOutBelowMaxDeviation_USDT()
+    public
+    givenAssetEligibleForSwap(WETH)
+    givenAssetEligibleForSwap(USDT)
+  {
+    // ------------------------------------------------------
+    // PART A: Setup & partial fail scenario
+    // ------------------------------------------------------
+    // 1) Check upkeep => get "performData" with 2 swaps (WETH, USDT).
+    (, bytes memory data) = _checkUpkeepWithSimulation();
+    IV3SwapRouter.ExactInputParams[] memory swapInputs = abi.decode(data, (IV3SwapRouter.ExactInputParams[]));
+    require(swapInputs.length == 2, "Expected exactly 2 swaps: WETH + USDT");
+
+    // 2) Gather balances & prices
+    uint256 amountInUsdt = IERC20(USDT).balanceOf(address(s_feeAggregatorReceiver));
+    uint256 usdtAssetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(USDT).usdFeed);
+
+    // 3) We let aggregator swap WETH first with no mocking => success
+
+    // 4) Then aggregator tries USDT => we force partial fail by mocking "insufficient" return
+    uint256 usdtSwapValue = usdtAssetPrice * amountInUsdt;
+    uint256 mockAmountOutUSDTBelowDeviation =
+      usdtSwapValue.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_PRICE_DEVIATION * 2);
+
+    // We assume swapInputs[1] is USDT => mock to fail
+    vm.mockCall(
+      UNISWAP_ROUTER,
+      abi.encodeWithSelector(IV3SwapRouter.exactInput.selector, swapInputs[1]),
+      abi.encode(mockAmountOutUSDTBelowDeviation)
+    );
+
+    // 5) performUpkeep => WETH swapped => USDT fails
+    s_swapAutomator.performUpkeep(data);
+
+    // 6) Checks after partial fail:
+    //    - aggregator WETH => 0 => lastSwapTimestamp updated
+    assertEq(IERC20(WETH).balanceOf(address(s_feeAggregatorReceiver)), 0, "WETH should be swapped out fully");
+    assertEq(s_swapAutomator.getLatestSwapTimestamp(WETH), block.timestamp, "WETH partial fail => not expected");
+
+    //    - aggregator USDT => unchanged => no lastSwapTimestamp
+    assertEq(IERC20(USDT).balanceOf(address(s_feeAggregatorReceiver)), amountInUsdt, "USDT remains after partial fail");
+    assertEq(s_swapAutomator.getLatestSwapTimestamp(USDT), 0, "USDT partial fail => no timestamp update");
+
+    // ------------------------------------------------------
+    // PART B: Now do a new pass that successfully swaps USDT
+    // ------------------------------------------------------
+
+    // 7) aggregator STILL has USDT => aggregator sees new upkeep => it tries just USDT now
+    //    Because aggregator's WETH is already zero, the aggregator only sees USDT left to swap.
+    //    So let's check again, with no mocking => let aggregator succeed USDT this time.
+    vm.clearMockedCalls();
+
+    // 8) Re-run _checkUpkeepWithSimulation => aggregator sees single swap: USDT
+    (bool shouldExecute2, bytes memory data2) = _checkUpkeepWithSimulation();
+    assertTrue(shouldExecute2, "Expected aggregator to have upkeep for USDT again");
+
+    IV3SwapRouter.ExactInputParams[] memory swapInputs2 = abi.decode(data2, (IV3SwapRouter.ExactInputParams[]));
+    // we expect a single swap now (just USDT)
+    require(swapInputs2.length == 1, "Expected exactly 1 swap: USDT this time");
+
+    // 9) aggregator performUpkeep => this time the USDT swap is not mocked => aggregator succeeds
+    s_swapAutomator.performUpkeep(data2);
+
+    // 10) Final checks: aggregator’s USDT => 0 => aggregator sets lastSwapTimestamp(USDT)
+    assertEq(
+      IERC20(USDT).balanceOf(address(s_feeAggregatorReceiver)),
+      0,
+      "Expected aggregator to have 0 USDT after second swap"
+    );
+    assertEq(
+      s_swapAutomator.getLatestSwapTimestamp(USDT),
+      block.timestamp,
+      "Expected aggregator to update lastSwapTimestamp(USDT) after success"
+    );
+  }
+
   /// @custom:see SwapAutomator._convertToLink();
-  function _getExpectedAmountOutLinkFromOracle(
+  function _getExpectedAmountOutLinkFromFeed(
     uint256 amount,
     uint256 assetPrice,
     IERC20Metadata asset
@@ -502,7 +603,7 @@ contract PerformUpkeepForkTest is BaseForkTest {
     // Changing the msg.sender and tx.origin to simulation add since checkUpKeep() is cannotExecute
     _changePrank(AUTOMATION_SIMULATION_ADDRESS, AUTOMATION_SIMULATION_ADDRESS);
     (bool shouldExecute, bytes memory data) = s_swapAutomator.checkUpkeep("");
-    _changePrank(FORWARDER);
+    _changePrank(i_forwarder);
     return (shouldExecute, data);
   }
 }

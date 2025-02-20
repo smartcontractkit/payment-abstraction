@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {NativeTokenReceiver} from "src/NativeTokenReceiver.sol";
 import {Errors} from "src/libraries/Errors.sol";
@@ -22,13 +22,13 @@ contract FeeAggregator_setWrappedNativeToken_UnitTest is BaseUnitTest {
 
   function test_setWrappedNativeToken_RevertWhen_CallerDoesNotHaveADMIN_ROLE() public whenCallerIsNotAdmin {
     vm.expectRevert(
-      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, NON_OWNER, DEFAULT_ADMIN_ROLE)
+      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, i_nonOwner, DEFAULT_ADMIN_ROLE)
     );
     s_feeRouter.setWrappedNativeToken(s_newWrappedNativeToken);
   }
 
   function test_setWrappedNativeToken_RevertWhen_NewWrappedNativeTokenEqOldWrappedNativeToken() public {
-    vm.expectRevert(Errors.ValueEqOriginalValue.selector);
+    vm.expectRevert(Errors.ValueNotUpdated.selector);
     s_feeAggregatorReceiver.setWrappedNativeToken(s_mockWrappedNativeToken);
   }
 }

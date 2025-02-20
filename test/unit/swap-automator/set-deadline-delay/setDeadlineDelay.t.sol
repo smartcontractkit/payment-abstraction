@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {SwapAutomator} from "src/SwapAutomator.sol";
+
+import {Errors} from "src/libraries/Errors.sol";
 import {Roles} from "src/libraries/Roles.sol";
 import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
 
@@ -11,18 +13,18 @@ contract SetDeadlineDelayUnitTest is BaseUnitTest {
   uint96 private constant NEW_DEADLINE_DELAY = DEADLINE_DELAY * 2;
 
   function setUp() public {
-    _changePrank(ASSET_ADMIN);
+    _changePrank(i_assetAdmin);
   }
 
   function test_setDeadlineDelay_RevertWhen_CallerDoesNotHaveASSET_ADMIN_ROLE() public whenCallerIsNotAssetManager {
     vm.expectRevert(
-      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, OWNER, Roles.ASSET_ADMIN_ROLE)
+      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, i_owner, Roles.ASSET_ADMIN_ROLE)
     );
     s_swapAutomator.setDeadlineDelay(NEW_DEADLINE_DELAY);
   }
 
   function test_setDeadlineDelay_RevertWhen_NewValueEqOldValue() public {
-    vm.expectRevert(SwapAutomator.DeadlineDelayNotUpdated.selector);
+    vm.expectRevert(Errors.ValueNotUpdated.selector);
     s_swapAutomator.setDeadlineDelay(DEADLINE_DELAY);
   }
 

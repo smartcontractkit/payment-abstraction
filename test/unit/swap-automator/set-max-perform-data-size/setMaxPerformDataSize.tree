@@ -1,0 +1,12 @@
+setMaxPerformDataSize.t.sol
+├─ when the caller does not have the DEFAULT_ADMIN_ROLE
+│  └─ it should revert
+└─ when the caller has the DEFAULT_ADMIN_ROLE
+   ├─ when the new maximum perform data size equals zero
+   │  └─ it should revert
+   └─ when the new maximum perform data size is greater than zero
+      ├─ when the new maximum perform data size equals the old one
+      │  └─ it should revert
+      └─ when the new maximum perform data size does not equal the old one
+         ├─ it should update the maximum perform data size
+         └─ it should emit a MaximumPeformDataSize set event

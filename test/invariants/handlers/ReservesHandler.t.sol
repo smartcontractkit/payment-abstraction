@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {Reserves} from "src/Reserves.sol";
 import {Constants} from "test/Constants.t.sol";
@@ -10,6 +10,8 @@ import {MockERC20} from "forge-std/mocks/MockERC20.sol";
 
 contract ReservesHandler is Test, Constants {
   using SafeCast for int256;
+
+  address private immutable i_earmarkManager = makeAddr("earmarkManager");
 
   int96 private constant LINK_MAX_SUPPLY = 1_000_000_000 ether; // 1 billion LINK
   Reserves private s_reserves;
@@ -43,7 +45,7 @@ contract ReservesHandler is Test, Constants {
     Reserves.Earmark[] memory earmarks = new Reserves.Earmark[](1);
     earmarks[0] = (Reserves.Earmark(serviceProvider, earmarkAmount, ""));
     vm.stopPrank();
-    vm.startPrank(EARMARK_MANAGER);
+    vm.startPrank(i_earmarkManager);
     s_totalEarmarked += earmarkAmount;
     s_reserves.setEarmarks(earmarks);
   }

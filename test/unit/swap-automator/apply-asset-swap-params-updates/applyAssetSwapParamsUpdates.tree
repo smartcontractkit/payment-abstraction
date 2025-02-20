@@ -4,31 +4,35 @@ applyAssetSwapParamsUpdates.t.sol
 └── when the caller has the ASSET_ADMIN_ROLE
     ├── when the asset to remove list length is not zero
     │   └── it should emit a AssetSwapParamsRemoved event
-    ├── when the asset list length is different than the swap parameters list length
-    │   └── it should revert
     ├── when the asset list contains assets that are not on the allowlist
     │   └── it should revert
-    ├── when the asset oracle is set to the zero address
-    │   └── it should revert
-    ├── when the asset swap path is not set
-    │   └── it should revert
-    └── when the asset oracle is not set to the zero address
-        ├── when the maximum slippage is set to zero
+    └── when the assets in the asset list are allowlisted
+        ├── when the asset feed is set to the zero address
         │   └── it should revert
-        ├── when the maximum slippage is 100%
+        ├── when the asset feed is not set to the zero address
         │   └── it should revert
-        ├── when the maximum slippage is greater than 100%
-        │   └── it should revert
-        └── when the maximum slippage is set to a non-zero value
-            ├── when setting the swap parameters for a single asset
-            │   ├── it should set the swap parameters for the asset
-            │   ├── when the asset is not already allowlisted
-            │   │   └── it should revert
-            │   ├── when the asset is already allowlisted
-            │   │   └── it should should update the asset swap parameters
-            │   └── it should emit a AssetSwapParamsUpdated event
-            └── when setting the swap parameters for multiple assets
-                ├── it should set the swap parameters for the assets
-                ├── when the asset is not already allowlisted
+        └── when the asset feed is not set to the zero address
+            ├── when the maximum slippage is set to zero
+            │   └── it should revert
+            └── when the maximum slippage is greater or equal than zero
+                ├── when the maximum slippage is 100%
                 │   └── it should revert
-                └── it should emit a AssetSwapParamsUpdated event
+                └── when the maximum slippage is greater than zero and lower than 100%
+                    ├─ when the maximum price deviation is less than the maximum slippage
+                    │  └─ it should revert
+                    └─ when the maximum price deviation is greater or equal to the maximum slippagge
+                       ├─ when the maximum price deviation is greater or equal to 100%
+                       │  └─ it should revert
+                       └─ when the maximum price deviation is less then 100%
+                          ├─ when the staleness threshold is zero
+                          │  └─ it should revert
+                          └─ when the staleness threshold is greater than zero
+                             ├── when the minimum swap is zero or greater than the maximum swap size
+                             │   └─ it should revert
+                             └─ when the minimum swap size is greater than zero and lower than the maxmum swap size
+                                ├── when the asset swap path is not set
+                                │   └── it should revert
+                                └── when the asset swap path is set
+                                    ├─ it should set the seap parameters for the asset
+                                    └─ it should emit an AssetSwapParamsUpdated event
+

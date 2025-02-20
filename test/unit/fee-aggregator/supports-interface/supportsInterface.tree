@@ -1,4 +1,4 @@
 supportsInterface.t.sol
 ├── it should support the IFeeAggregator interface
-└── it should support the IAny2EVMMessageReceiver interface
+└── it should not support the IAny2EVMMessageReceiver interface
 

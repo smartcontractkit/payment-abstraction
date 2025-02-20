@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {FeeAggregator} from "src/FeeAggregator.sol";
 import {SwapAutomator} from "src/SwapAutomator.sol";
@@ -13,35 +13,43 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 
 contract ApplyAssetSwapParamsUpdatesUnitTest is BaseUnitTest {
   address[] private s_swapAssets;
-  SwapAutomator.SwapParams[] private s_swapParams;
+  SwapAutomator.AssetSwapParamsArgs[] private s_assetSwapParamsArgs;
 
   function setUp() public {
-    s_swapAssets.push(ASSET_1);
-    s_swapParams.push(
-      SwapAutomator.SwapParams({
-        oracle: AggregatorV3Interface(ASSET_1_ORACLE),
-        maxSlippage: MAX_SLIPPAGE,
-        minSwapSizeUsd: MIN_SWAP_SIZE,
-        maxSwapSizeUsd: MAX_SWAP_SIZE,
-        maxPriceDeviation: MAX_PRICE_DEVIATION,
-        swapInterval: SWAP_INTERVAL,
-        path: ASSET_1_SWAP_PATH
+    s_swapAssets.push(i_asset1);
+    s_assetSwapParamsArgs.push(
+      SwapAutomator.AssetSwapParamsArgs({
+        asset: i_asset1,
+        swapParams: SwapAutomator.SwapParams({
+          usdFeed: AggregatorV3Interface(i_asset1UsdFeed),
+          maxSlippage: MAX_SLIPPAGE,
+          minSwapSizeUsd: MIN_SWAP_SIZE,
+          maxSwapSizeUsd: MAX_SWAP_SIZE,
+          maxPriceDeviation: MAX_PRICE_DEVIATION,
+          swapInterval: SWAP_INTERVAL,
+          stalenessThreshold: STALENESS_THRESHOLD,
+          path: ASSET_1_SWAP_PATH
+        })
       })
     );
-    s_swapAssets.push(ASSET_2);
-    s_swapParams.push(
-      SwapAutomator.SwapParams({
-        oracle: AggregatorV3Interface(ASSET_2_ORACLE),
-        maxSlippage: MAX_SLIPPAGE,
-        minSwapSizeUsd: MIN_SWAP_SIZE,
-        maxSwapSizeUsd: MAX_SWAP_SIZE,
-        maxPriceDeviation: MAX_PRICE_DEVIATION,
-        swapInterval: SWAP_INTERVAL,
-        path: ASSET_2_SWAP_PATH
+    s_swapAssets.push(i_asset2);
+    s_assetSwapParamsArgs.push(
+      SwapAutomator.AssetSwapParamsArgs({
+        asset: i_asset2,
+        swapParams: SwapAutomator.SwapParams({
+          usdFeed: AggregatorV3Interface(i_asset2UsdFeed),
+          maxSlippage: MAX_SLIPPAGE,
+          minSwapSizeUsd: MIN_SWAP_SIZE,
+          maxSwapSizeUsd: MAX_SWAP_SIZE,
+          maxPriceDeviation: MAX_PRICE_DEVIATION,
+          swapInterval: SWAP_INTERVAL,
+          stalenessThreshold: STALENESS_THRESHOLD,
+          path: ASSET_2_SWAP_PATH
+        })
       })
     );
 
-    _changePrank(ASSET_ADMIN);
+    _changePrank(i_assetAdmin);
     s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), s_swapAssets);
   }
 
@@ -50,246 +58,179 @@ contract ApplyAssetSwapParamsUpdatesUnitTest is BaseUnitTest {
     whenCallerIsNotAssetManager
   {
     vm.expectRevert(
-      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, OWNER, Roles.ASSET_ADMIN_ROLE)
+      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, i_owner, Roles.ASSET_ADMIN_ROLE)
     );
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: s_swapAssets, assetsSwapParams: s_swapParams})
-    );
-  }
-
-  function test_applyAssetSwapParamsUpdates_RevertWhen_AssetListLengthDoesNotMatchSwapParamsLength() public {
-    address[] memory assetList = new address[](1);
-    assetList[0] = ASSET_1;
-    vm.expectRevert(SwapAutomator.AssetsSwapParamsMismatch.selector);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: assetList, assetsSwapParams: s_swapParams})
-    );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
   }
 
   function test_applyAssetSwapParamsUpdates_RevertWhen_AssetListIsNotAllowlistedOnTheReceiver() public {
-    address[] memory assetList = new address[](1);
-    assetList[0] = INVALID_ASSET;
-    SwapAutomator.SwapParams[] memory newSwapParams = new SwapAutomator.SwapParams[](1);
-    newSwapParams[0] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(ASSET_1_ORACLE),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION,
-      swapInterval: SWAP_INTERVAL,
-      path: ASSET_1_SWAP_PATH
-    });
-    vm.expectRevert(abi.encodeWithSelector(Errors.AssetNotAllowlisted.selector, INVALID_ASSET));
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: assetList, assetsSwapParams: newSwapParams})
-    );
+    s_assetSwapParamsArgs.pop();
+    s_assetSwapParamsArgs[0].asset = i_invalidAsset;
+    vm.expectRevert(abi.encodeWithSelector(Errors.AssetNotAllowlisted.selector, i_invalidAsset));
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
   }
 
-  function test_applyAssetSwapParamsUpdates_RevertWhen_OracleIsZeroAddress() public {
-    s_swapParams[0].oracle = AggregatorV3Interface(address(0));
+  function test_applyAssetSwapParamsUpdates_RevertWhen_FeedIsZeroAddress() public {
+    s_assetSwapParamsArgs[0].swapParams.usdFeed = AggregatorV3Interface(address(0));
     vm.expectRevert(Errors.InvalidZeroAddress.selector);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: s_swapAssets, assetsSwapParams: s_swapParams})
-    );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
+  }
+
+  function test_applyAssetSwapParamsUpdates_RevertWhen_StalenessThresholdEqZero() public {
+    s_assetSwapParamsArgs[0].swapParams.stalenessThreshold = 0;
+    vm.expectRevert(Errors.InvalidZeroAmount.selector);
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
   }
 
   function test_applySetSwapParamsUpdates_RevertWhen_SwapPathIsEmpty() public {
-    s_swapParams[0].path = EMPTY_SWAP_PATH;
+    s_assetSwapParamsArgs[0].swapParams.path = EMPTY_SWAP_PATH;
     vm.expectRevert(SwapAutomator.EmptySwapPath.selector);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: s_swapAssets, assetsSwapParams: s_swapParams})
-    );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
   }
 
   function test_applyAssetSwapParamsUpdates_RevertWhen_MaxSlippageIsZero() public {
-    s_swapParams[0].maxSlippage = 0;
-    vm.expectRevert(SwapAutomator.InvalidSlippage.selector);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: s_swapAssets, assetsSwapParams: s_swapParams})
-    );
+    s_assetSwapParamsArgs[0].swapParams.maxSlippage = 0;
+    vm.expectRevert(abi.encodeWithSelector(SwapAutomator.InvalidSlippage.selector, 0));
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
   }
 
   function test_applyAssetSwapParamsUpdates_RevertWhen_MaxSlippageIsOneHundredPercent() public {
-    s_swapParams[0].maxSlippage = uint16(PercentageMath.PERCENTAGE_FACTOR);
-    vm.expectRevert(SwapAutomator.InvalidSlippage.selector);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: s_swapAssets, assetsSwapParams: s_swapParams})
-    );
+    uint16 maxSlippage = uint16(PercentageMath.PERCENTAGE_FACTOR);
+    s_assetSwapParamsArgs[0].swapParams.maxSlippage = maxSlippage;
+    vm.expectRevert(abi.encodeWithSelector(SwapAutomator.InvalidSlippage.selector, maxSlippage));
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
   }
 
   function test_applyAssetSwapParamsUpdates_RevertWhen_MaxSlippageGreaterThanOneHundredPercent() public {
-    s_swapParams[0].maxSlippage = uint16(1 + PercentageMath.PERCENTAGE_FACTOR);
-    vm.expectRevert(SwapAutomator.InvalidSlippage.selector);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: s_swapAssets, assetsSwapParams: s_swapParams})
-    );
+    uint16 maxSlippage = uint16(1 + PercentageMath.PERCENTAGE_FACTOR);
+    s_assetSwapParamsArgs[0].swapParams.maxSlippage = maxSlippage;
+    vm.expectRevert(abi.encodeWithSelector(SwapAutomator.InvalidSlippage.selector, maxSlippage));
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
   }
 
   function test_applyAssetSwapParamsUpdates_RevertWhen_MaxPriceDeviationIsBelowMaxSlippage() public {
-    s_swapParams[0].maxPriceDeviation = 100;
-    s_swapParams[0].maxSlippage = 101;
-    vm.expectRevert(SwapAutomator.InvalidMaxPriceDeviation.selector);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: s_swapAssets, assetsSwapParams: s_swapParams})
+    s_assetSwapParamsArgs[0].swapParams.maxPriceDeviation = 100;
+    s_assetSwapParamsArgs[0].swapParams.maxSlippage = 101;
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        SwapAutomator.InvalidMaxPriceDeviation.selector, s_assetSwapParamsArgs[0].swapParams.maxPriceDeviation
+      )
     );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
   }
 
   function test_applyAssetSwapParamsUpdates_RevertWhen_MaxPriceDeviationIsOneHundredPercent() public {
-    s_swapParams[0].maxPriceDeviation = uint16(PercentageMath.PERCENTAGE_FACTOR);
-    vm.expectRevert(SwapAutomator.InvalidMaxPriceDeviation.selector);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: s_swapAssets, assetsSwapParams: s_swapParams})
-    );
+    uint16 maxPriceDeviation = uint16(PercentageMath.PERCENTAGE_FACTOR);
+    s_assetSwapParamsArgs[0].swapParams.maxPriceDeviation = maxPriceDeviation;
+    vm.expectRevert(abi.encodeWithSelector(SwapAutomator.InvalidMaxPriceDeviation.selector, maxPriceDeviation));
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
   }
 
   function test_applyAssetSwapParamsUpdates_RevertWhen_MaxPriceDeviationGreaterThanOneHundredPercent() public {
-    s_swapParams[0].maxPriceDeviation = uint16(1 + PercentageMath.PERCENTAGE_FACTOR);
-    vm.expectRevert(SwapAutomator.InvalidMaxPriceDeviation.selector);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: s_swapAssets, assetsSwapParams: s_swapParams})
+    s_assetSwapParamsArgs[0].swapParams.maxPriceDeviation = uint16(1 + PercentageMath.PERCENTAGE_FACTOR);
+    vm.expectRevert(
+      abi.encodeWithSelector(
+        SwapAutomator.InvalidMaxPriceDeviation.selector, s_assetSwapParamsArgs[0].swapParams.maxPriceDeviation
+      )
     );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
+  }
+
+  function test_applyAssetSwapParamsUpdates_RevertWhen_MinSwapSizeEqZero() public {
+    s_assetSwapParamsArgs[0].swapParams.minSwapSizeUsd = 0;
+    vm.expectRevert(SwapAutomator.InvalidMinSwapSizeUsd.selector);
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
+  }
+
+  function test_applyAssetSwapParamsUpdates_RevertWhen_MinSwapSizeGtMaxSwapSize() public {
+    s_assetSwapParamsArgs[0].swapParams.minSwapSizeUsd = s_assetSwapParamsArgs[0].swapParams.maxSwapSizeUsd + 1;
+    vm.expectRevert(SwapAutomator.InvalidMinSwapSizeUsd.selector);
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
   }
 
   function test_applyAssetSwapParamsUpdates_RemoveAsset() public {
-    address[] memory newSwapAssets = new address[](1);
-    SwapAutomator.SwapParams[] memory newSwapParams = new SwapAutomator.SwapParams[](1);
-    newSwapAssets[0] = ASSET_1;
-    newSwapParams[0] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(ASSET_1_ORACLE),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION,
-      swapInterval: SWAP_INTERVAL,
-      path: ASSET_1_SWAP_PATH
-    });
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: newSwapAssets, assetsSwapParams: newSwapParams})
-    );
-    assertFalse(s_swapAutomator.getHashedSwapPath(ASSET_1) == bytes32(0));
+    s_assetSwapParamsArgs.pop();
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
+    assertFalse(s_swapAutomator.getHashedSwapPath(i_asset1) == bytes32(0));
 
     address[] memory assetsToRemove = new address[](1);
-    assetsToRemove[0] = ASSET_1;
+    assetsToRemove[0] = i_asset1;
 
     vm.expectEmit(address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapParamsRemoved(ASSET_1);
+    emit SwapAutomator.AssetSwapParamsRemoved(i_asset1);
 
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      assetsToRemove,
-      SwapAutomator.AssetSwapParamsArgs({assets: new address[](0), assetsSwapParams: new SwapAutomator.SwapParams[](0)})
-    );
-    assertTrue(s_swapAutomator.getHashedSwapPath(ASSET_1) == bytes32(0));
+    s_swapAutomator.applyAssetSwapParamsUpdates(assetsToRemove, new SwapAutomator.AssetSwapParamsArgs[](0));
+    assertTrue(s_swapAutomator.getHashedSwapPath(i_asset1) == bytes32(0));
   }
 
   function test_applyAssetSwapParamsUpdates_SingleAssetWithSamePriceDeviation() public {
-    address[] memory newSwapAssets = new address[](1);
-    SwapAutomator.SwapParams[] memory newSwapParams = new SwapAutomator.SwapParams[](1);
-    newSwapAssets[0] = ASSET_1;
-    newSwapParams[0] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(ASSET_1_ORACLE),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_SLIPPAGE,
-      swapInterval: SWAP_INTERVAL,
-      path: ASSET_1_SWAP_PATH
-    });
+    s_assetSwapParamsArgs.pop();
+    s_assetSwapParamsArgs[0].swapParams.maxPriceDeviation = s_assetSwapParamsArgs[0].swapParams.maxSlippage;
 
     vm.expectEmit(address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapParamsUpdated(ASSET_1, newSwapParams[0]);
+    emit SwapAutomator.AssetSwapParamsUpdated(i_asset1, s_assetSwapParamsArgs[0].swapParams);
 
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: newSwapAssets, assetsSwapParams: newSwapParams})
-    );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
 
-    SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(ASSET_1);
+    SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(i_asset1);
 
-    _assertSwapParamsEquality(swapParams, newSwapParams[0]);
+    _assertSwapParamsEquality(swapParams, s_assetSwapParamsArgs[0].swapParams);
   }
 
   function test_applyAssetSwapParamsUpdates_SingleAssetWithHigherMaxPriceDeviation() public {
-    address[] memory newSwapAssets = new address[](1);
-    SwapAutomator.SwapParams[] memory newSwapParams = new SwapAutomator.SwapParams[](1);
-    newSwapAssets[0] = ASSET_1;
-    newSwapParams[0] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(ASSET_1_ORACLE),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_SLIPPAGE + 1,
-      swapInterval: SWAP_INTERVAL,
-      path: ASSET_1_SWAP_PATH
-    });
+    s_assetSwapParamsArgs.pop();
+    s_assetSwapParamsArgs[0].swapParams.maxPriceDeviation = s_assetSwapParamsArgs[0].swapParams.maxSlippage + 1;
 
     vm.expectEmit(address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapParamsUpdated(ASSET_1, newSwapParams[0]);
+    emit SwapAutomator.AssetSwapParamsUpdated(i_asset1, s_assetSwapParamsArgs[0].swapParams);
 
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: newSwapAssets, assetsSwapParams: newSwapParams})
-    );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
 
-    SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(ASSET_1);
+    SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(i_asset1);
 
-    _assertSwapParamsEquality(swapParams, newSwapParams[0]);
+    _assertSwapParamsEquality(swapParams, s_assetSwapParamsArgs[0].swapParams);
   }
 
   function test_applyAssetSwapParamsUpdates_AssetAlreadyAllowlisted() public {
-    SwapAutomator.SwapParams[] memory newSwapParams = new SwapAutomator.SwapParams[](1);
-    address[] memory swapAssets = new address[](1);
-    swapAssets[0] = ASSET_1;
-    newSwapParams[0] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(ASSET_1_ORACLE),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION,
-      swapInterval: SWAP_INTERVAL,
-      path: ASSET_1_SWAP_PATH
-    });
+    s_assetSwapParamsArgs.pop();
 
     vm.expectEmit(address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapParamsUpdated(ASSET_1, newSwapParams[0]);
+    emit SwapAutomator.AssetSwapParamsUpdated(i_asset1, s_assetSwapParamsArgs[0].swapParams);
 
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: swapAssets, assetsSwapParams: newSwapParams})
-    );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
 
-    newSwapParams[0].oracle = AggregatorV3Interface(ASSET_2_ORACLE);
+    s_assetSwapParamsArgs[0].swapParams.usdFeed = AggregatorV3Interface(i_asset2UsdFeed);
 
     vm.expectEmit(address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapParamsUpdated(ASSET_1, newSwapParams[0]);
+    emit SwapAutomator.AssetSwapParamsUpdated(i_asset1, s_assetSwapParamsArgs[0].swapParams);
 
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: swapAssets, assetsSwapParams: newSwapParams})
-    );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
 
-    SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(ASSET_1);
+    SwapAutomator.SwapParams memory swapParams = s_swapAutomator.getAssetSwapParams(i_asset1);
 
-    _assertSwapParamsEquality(swapParams, newSwapParams[0]);
+    _assertSwapParamsEquality(swapParams, s_assetSwapParamsArgs[0].swapParams);
   }
 
   function test_applyAssetSwapParamsUpdates_MultipleAssets() public {
     vm.expectEmit(address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapParamsUpdated(ASSET_1, s_swapParams[0]);
+    emit SwapAutomator.AssetSwapParamsUpdated(i_asset1, s_assetSwapParamsArgs[0].swapParams);
     vm.expectEmit(address(s_swapAutomator));
-    emit SwapAutomator.AssetSwapParamsUpdated(ASSET_2, s_swapParams[1]);
+    emit SwapAutomator.AssetSwapParamsUpdated(i_asset2, s_assetSwapParamsArgs[1].swapParams);
 
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: s_swapAssets, assetsSwapParams: s_swapParams})
-    );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), s_assetSwapParamsArgs);
 
-    SwapAutomator.SwapParams memory asset1SwapParams = s_swapAutomator.getAssetSwapParams(ASSET_1);
-    SwapAutomator.SwapParams memory asset2SwapParams = s_swapAutomator.getAssetSwapParams(ASSET_2);
+    SwapAutomator.SwapParams memory asset1SwapParams = s_swapAutomator.getAssetSwapParams(i_asset1);
+    SwapAutomator.SwapParams memory asset2SwapParams = s_swapAutomator.getAssetSwapParams(i_asset2);
 
-    _assertSwapParamsEquality(asset1SwapParams, s_swapParams[0]);
-    _assertSwapParamsEquality(asset2SwapParams, s_swapParams[1]);
+    _assertSwapParamsEquality(asset1SwapParams, s_assetSwapParamsArgs[0].swapParams);
+    _assertSwapParamsEquality(asset2SwapParams, s_assetSwapParamsArgs[1].swapParams);
   }
 
   function _assertSwapParamsEquality(
     SwapAutomator.SwapParams memory swapParams1,
     SwapAutomator.SwapParams memory swapParams2
   ) internal {
-    assertEq(address(swapParams1.oracle), address(swapParams2.oracle));
+    assertEq(address(swapParams1.usdFeed), address(swapParams2.usdFeed));
     assertEq(swapParams1.maxSlippage, swapParams2.maxSlippage);
     assertEq(swapParams1.minSwapSizeUsd, swapParams2.minSwapSizeUsd);
     assertEq(swapParams1.maxSwapSizeUsd, swapParams2.maxSwapSizeUsd);

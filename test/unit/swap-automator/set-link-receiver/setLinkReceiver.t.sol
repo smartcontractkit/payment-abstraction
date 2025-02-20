@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {SwapAutomator} from "src/SwapAutomator.sol";
 import {Errors} from "src/libraries/Errors.sol";
@@ -10,9 +10,9 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 contract SetLinkReceiverUnitTests is BaseUnitTest {
   function test_SetLinkReceiver_RevertWhen_CallerDoesNotHaveDEFAULT_ADMIN_ROLE() public whenCallerIsNotAdmin {
     vm.expectRevert(
-      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, NON_OWNER, DEFAULT_ADMIN_ROLE)
+      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, i_nonOwner, DEFAULT_ADMIN_ROLE)
     );
-    s_swapAutomator.setLinkReceiver(RECEIVER);
+    s_swapAutomator.setLinkReceiver(i_receiver);
   }
 
   function test_SetLinkReceiver_RevertWhen_SwapAutomatorAddressIsZero() public {
@@ -21,8 +21,8 @@ contract SetLinkReceiverUnitTests is BaseUnitTest {
   }
 
   function test_SetLinkReceiver_RevertWhen_NotUpdated() public {
-    vm.expectRevert(SwapAutomator.LinkReceiverNotUpdated.selector);
-    s_swapAutomator.setLinkReceiver(RECEIVER);
+    vm.expectRevert(Errors.ValueNotUpdated.selector);
+    s_swapAutomator.setLinkReceiver(i_receiver);
   }
 
   function test_SetLinkReceiver() public {

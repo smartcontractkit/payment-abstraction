@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {IFeeAggregator} from "src/interfaces/IFeeAggregator.sol";
 
@@ -69,20 +69,20 @@ abstract contract BaseInvariant is StdInvariant, BaseTest {
 
     s_feeAggregatorReceiver = new FeeAggregator(
       FeeAggregator.ConstructorParams({
-        admin: OWNER,
+        admin: i_owner,
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         linkToken: address(s_mockLink),
-        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT,
+        ccipRouterClient: i_mockCCIPRouterClient,
         wrappedNativeToken: address(s_mockWeth)
       })
     );
 
     s_feeAggregatorSender = new FeeAggregator(
       FeeAggregator.ConstructorParams({
-        admin: OWNER,
+        admin: i_owner,
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         linkToken: address(s_mockLink),
-        ccipRouterClient: MOCK_CCIP_ROUTER_CLIENT,
+        ccipRouterClient: i_mockCCIPRouterClient,
         wrappedNativeToken: address(s_mockWeth)
       })
     );
@@ -90,14 +90,14 @@ abstract contract BaseInvariant is StdInvariant, BaseTest {
     s_reserves = new Reserves(
       Reserves.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
+        admin: i_owner,
         linkToken: address(s_mockLink)
       })
     );
     address[] memory serviceProviders = new address[](3);
-    serviceProviders[0] = SERVICE_PROVIDER_1;
-    serviceProviders[1] = SERVICE_PROVIDER_2;
-    serviceProviders[2] = SERVICE_PROVIDER_3;
+    serviceProviders[0] = i_serviceProvider1;
+    serviceProviders[1] = i_serviceProvider2;
+    serviceProviders[2] = i_serviceProvider3;
 
     s_mockUniswapRouter = new MockUniswapRouter(address(s_mockLink));
     s_mockUniswapQuoterV2 = new MockUniswapQuoterV2();
@@ -105,14 +105,15 @@ abstract contract BaseInvariant is StdInvariant, BaseTest {
     s_swapAutomator = new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
+        admin: i_owner,
         linkToken: address(s_mockLink),
         feeAggregator: address(s_feeAggregatorReceiver),
         linkUsdFeed: address(s_mockLinkUsdFeed),
         uniswapRouter: address(s_mockUniswapRouter),
         uniswapQuoterV2: address(s_mockUniswapQuoterV2),
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
 
@@ -127,57 +128,67 @@ abstract contract BaseInvariant is StdInvariant, BaseTest {
       s_mockLink
     );
 
-    _changePrank(OWNER);
-    s_feeAggregatorReceiver.grantRole(Roles.ASSET_ADMIN_ROLE, ASSET_ADMIN);
+    _changePrank(i_owner);
+    s_feeAggregatorReceiver.grantRole(Roles.ASSET_ADMIN_ROLE, i_assetAdmin);
     s_feeAggregatorReceiver.grantRole(Roles.ASSET_ADMIN_ROLE, address(s_assetHandler));
     s_feeAggregatorReceiver.grantRole(Roles.SWAPPER_ROLE, address(s_swapAutomator));
-    s_feeAggregatorSender.grantRole(Roles.PAUSER_ROLE, PAUSER);
+    s_feeAggregatorSender.grantRole(Roles.PAUSER_ROLE, i_pauser);
     s_feeAggregatorSender.grantRole(Roles.SWAPPER_ROLE, address(s_swapAutomator));
-    s_reserves.grantRole(Roles.EARMARK_MANAGER_ROLE, EARMARK_MANAGER);
-    s_swapAutomator.grantRole(Roles.ASSET_ADMIN_ROLE, ASSET_ADMIN);
+    s_reserves.grantRole(Roles.EARMARK_MANAGER_ROLE, i_earmarkManager);
+    s_swapAutomator.grantRole(Roles.ASSET_ADMIN_ROLE, i_assetAdmin);
     s_swapAutomator.grantRole(Roles.ASSET_ADMIN_ROLE, address(s_assetHandler));
     s_swapAutomator.setForwarder(address(s_upkeepHandler));
 
     address[] memory swapAssets = new address[](3);
-    SwapAutomator.SwapParams[] memory swapParams = new SwapAutomator.SwapParams[](3);
+    SwapAutomator.AssetSwapParamsArgs[] memory assetSwapParamsArgs = new SwapAutomator.AssetSwapParamsArgs[](3);
     swapAssets[0] = address(s_mockWeth);
-    swapParams[0] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(address(s_mockEthUsdFeed)),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION_INVARIANTS,
-      swapInterval: 0,
-      path: bytes.concat(bytes20(address(s_mockWeth)), bytes3(UNI_POOL_FEE), bytes20(address(s_mockLink)))
+    assetSwapParamsArgs[0] = SwapAutomator.AssetSwapParamsArgs({
+      asset: address(s_mockWeth),
+      swapParams: SwapAutomator.SwapParams({
+        usdFeed: AggregatorV3Interface(address(s_mockEthUsdFeed)),
+        maxSlippage: MAX_SLIPPAGE,
+        minSwapSizeUsd: MIN_SWAP_SIZE,
+        maxSwapSizeUsd: MAX_SWAP_SIZE,
+        maxPriceDeviation: MAX_PRICE_DEVIATION_INVARIANTS,
+        swapInterval: 0,
+        stalenessThreshold: STALENESS_THRESHOLD,
+        path: bytes.concat(bytes20(address(s_mockWeth)), bytes3(UNI_POOL_FEE), bytes20(address(s_mockLink)))
+      })
     });
     swapAssets[1] = address(s_mockUsdc);
-    swapParams[1] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(address(s_mockUsdcUsdFeed)),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION_INVARIANTS,
-      swapInterval: 0,
-      path: bytes.concat(bytes20(address(s_mockUsdc)), bytes3(UNI_POOL_FEE), bytes20(address(s_mockLink)))
+    assetSwapParamsArgs[1] = SwapAutomator.AssetSwapParamsArgs({
+      asset: address(s_mockUsdc),
+      swapParams: SwapAutomator.SwapParams({
+        usdFeed: AggregatorV3Interface(address(s_mockUsdcUsdFeed)),
+        maxSlippage: MAX_SLIPPAGE,
+        minSwapSizeUsd: MIN_SWAP_SIZE,
+        maxSwapSizeUsd: MAX_SWAP_SIZE,
+        maxPriceDeviation: MAX_PRICE_DEVIATION_INVARIANTS,
+        swapInterval: 0,
+        stalenessThreshold: STALENESS_THRESHOLD,
+        path: bytes.concat(bytes20(address(s_mockUsdc)), bytes3(UNI_POOL_FEE), bytes20(address(s_mockLink)))
+      })
     });
     swapAssets[2] = address(s_mockHighDecimalToken);
-    swapParams[2] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(address(s_mockHdtUsdFeed)),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION_INVARIANTS,
-      swapInterval: 0,
-      path: bytes.concat(bytes20(address(s_mockHighDecimalToken)), bytes3(UNI_POOL_FEE), bytes20(address(s_mockLink)))
+    assetSwapParamsArgs[2] = SwapAutomator.AssetSwapParamsArgs({
+      asset: address(s_mockHighDecimalToken),
+      swapParams: SwapAutomator.SwapParams({
+        usdFeed: AggregatorV3Interface(address(s_mockHdtUsdFeed)),
+        maxSlippage: MAX_SLIPPAGE,
+        minSwapSizeUsd: MIN_SWAP_SIZE,
+        maxSwapSizeUsd: MAX_SWAP_SIZE,
+        maxPriceDeviation: MAX_PRICE_DEVIATION_INVARIANTS,
+        swapInterval: 0,
+        stalenessThreshold: STALENESS_THRESHOLD,
+        path: bytes.concat(bytes20(address(s_mockHighDecimalToken)), bytes3(UNI_POOL_FEE), bytes20(address(s_mockLink)))
+      })
     });
 
-    _changePrank(ASSET_ADMIN);
+    _changePrank(i_assetAdmin);
     s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), swapAssets);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: swapAssets, assetsSwapParams: swapParams})
-    );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), assetSwapParamsArgs);
 
-    _changePrank(EARMARK_MANAGER);
+    _changePrank(i_earmarkManager);
     s_reserves.addAllowlistedServiceProviders(serviceProviders);
 
     bytes4[] memory assetHanderSelectors = new bytes4[](1);
@@ -215,16 +226,16 @@ abstract contract BaseInvariant is StdInvariant, BaseTest {
     vm.label(address(s_feeAggregatorSender), "FeeAggregatorSender");
     vm.label(address(s_swapAutomator), "SwapAutomator");
     vm.label(address(s_reserves), "Reserves");
-    vm.label(OWNER, "OWNER");
-    vm.label(ASSET_ADMIN, "ASSET_ADMIN");
+    vm.label(i_owner, "Owner");
+    vm.label(i_assetAdmin, "Asset Admin");
     vm.label(address(s_mockLink), "LINK");
     vm.label(address(s_mockWeth), "WETH");
     vm.label(address(s_mockUsdc), "USDC");
     vm.label(address(s_mockHighDecimalToken), "HDT");
-    vm.label(address(s_mockLinkUsdFeed), "MOCK_LINK_USD_FEED");
-    vm.label(address(s_mockEthUsdFeed), "ETH_USD_FEED");
-    vm.label(address(s_mockUsdcUsdFeed), "USDC_USD_FEED");
-    vm.label(address(s_mockHdtUsdFeed), "HDT_USD_FEED");
+    vm.label(address(s_mockLinkUsdFeed), "Mock LINK/USD Feed");
+    vm.label(address(s_mockEthUsdFeed), "Mock ETH/USD Feed");
+    vm.label(address(s_mockUsdcUsdFeed), "Mock USDC/USD Feed");
+    vm.label(address(s_mockHdtUsdFeed), "Mock HDT/USD Feed");
   }
 
   function test_invariant() public {}

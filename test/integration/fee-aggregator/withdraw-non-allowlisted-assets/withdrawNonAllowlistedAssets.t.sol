@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
+import {EmergencyWithdrawer} from "src/EmergencyWithdrawer.sol";
 import {FeeAggregator} from "src/FeeAggregator.sol";
+import {Common} from "src/libraries/Common.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {Roles} from "src/libraries/Roles.sol";
 import {BaseIntegrationTest} from "test/integration/BaseIntegrationTest.t.sol";
 
 import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
 contract FeeAggregator_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegrationTest {
-  address[] private s_assets;
-  uint256[] private s_amounts;
+  Common.AssetAmount[] private s_assetAmounts;
 
   function setUp() public {
     deal(address(s_mockWETH), address(s_feeAggregatorReceiver), 1 ether);
@@ -20,17 +22,20 @@ contract FeeAggregator_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegr
     address[] memory allowlistedAssets = new address[](1);
     allowlistedAssets[0] = address(s_mockWETH);
 
-    _changePrank(ASSET_ADMIN);
+    _changePrank(i_assetAdmin);
     s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), allowlistedAssets);
 
-    _changePrank(WITHDRAWER);
-    s_assets.push(address(s_mockWBTC));
-    s_assets.push(address(s_mockUSDC));
-    s_amounts.push(1e8);
-    s_amounts.push(1000e6);
+    _changePrank(i_withdrawer);
+    s_assetAmounts.push(Common.AssetAmount({asset: address(s_mockWBTC), amount: 1e8}));
+    s_assetAmounts.push(Common.AssetAmount({asset: address(s_mockUSDC), amount: 1000e6}));
+  }
 
-    vm.label(address(s_mockUSDC), "Mock USDC");
-    vm.label(address(s_mockWBTC), "Mock WBTC");
+  function test_withdrawNonAllowlistedAssets_RevertWhen_ContractIsPaused()
+    public
+    givenContractIsPaused(address(s_feeAggregatorReceiver))
+  {
+    vm.expectRevert(Pausable.EnforcedPause.selector);
+    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(i_withdrawer, s_assetAmounts);
   }
 
   function test_withdrawNonAllowlistedAssets_RevertWhen_CallerDoesNotHaveWITHDRAWER_ROLE()
@@ -38,67 +43,60 @@ contract FeeAggregator_WithdrawNonAllowlistedAssetsIntegrationTest is BaseIntegr
     whenCallerIsNotWithdrawer
   {
     vm.expectRevert(
-      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, OWNER, Roles.WITHDRAWER_ROLE)
+      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, i_owner, Roles.WITHDRAWER_ROLE)
     );
-    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
+    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(i_withdrawer, s_assetAmounts);
   }
 
   function test_withdrawNonAllowlistedAssets_RevertWhen_EmptyAssetList() public {
     vm.expectRevert(Errors.EmptyList.selector);
-    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(WITHDRAWER, new address[](0), new uint256[](0));
-  }
-
-  function test_withdrawNonAllowlistedAssets_RevertWhen_AssetLitLengthNeqAmountListLength() public {
-    s_amounts.pop();
-    vm.expectRevert(Errors.ArrayLengthMismatch.selector);
-    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
+    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(i_withdrawer, new Common.AssetAmount[](0));
   }
 
   function test_withdrawNonAllowlistedAssets_RevertWhen_AssetIsAddressZero() public {
-    s_assets[0] = address(0);
+    s_assetAmounts[0].asset = address(0);
     vm.expectRevert(Errors.InvalidZeroAddress.selector);
-    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
+    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(i_withdrawer, s_assetAmounts);
   }
 
   function test_withdrawNonAllowlistedAssets_RevertWhen_AmountIsZero() public {
-    s_amounts[0] = 0;
+    s_assetAmounts[0].amount = 0;
     vm.expectRevert(Errors.InvalidZeroAmount.selector);
-    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
+    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(i_withdrawer, s_assetAmounts);
   }
 
   function test_withdrawNonAllowlistedAssets_RevertWhen_AssetIsAllowlisted() public {
-    address[] memory assets = new address[](1);
-    assets[0] = address(s_mockWETH);
-    uint256[] memory amounts = new uint256[](1);
-    amounts[0] = 1 ether;
+    s_assetAmounts[0].asset = address(s_mockUSDC);
+    s_assetAmounts[1].asset = address(s_mockWETH);
+    s_assetAmounts[0].amount = 1000e6;
+    s_assetAmounts[1].amount = 1 ether;
 
     vm.expectRevert(abi.encodeWithSelector(Errors.AssetAllowlisted.selector, address(s_mockWETH)));
-    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(WITHDRAWER, assets, amounts);
+    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(i_withdrawer, s_assetAmounts);
   }
 
   function test_withdrawNonAllowlistedAssets_SingleAsset() public {
-    s_assets.pop();
-    s_amounts.pop();
+    s_assetAmounts.pop();
 
     vm.expectEmit(address(s_feeAggregatorReceiver));
-    emit FeeAggregator.NonAllowlistedAssetWithdrawn(WITHDRAWER, s_assets[0], s_amounts[0]);
+    emit FeeAggregator.NonAllowlistedAssetWithdrawn(i_withdrawer, s_assetAmounts[0].asset, s_assetAmounts[0].amount);
 
-    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
+    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(i_withdrawer, s_assetAmounts);
 
-    assertEq(s_mockWBTC.balanceOf(WITHDRAWER), s_amounts[0]);
+    assertEq(s_mockWBTC.balanceOf(i_withdrawer), s_assetAmounts[0].amount);
     assertEq(s_mockWBTC.balanceOf(address(s_feeAggregatorReceiver)), 0);
   }
 
   function test_withdrawNonAllowlistedAssets_MultipleAssets() public {
     vm.expectEmit(address(s_feeAggregatorReceiver));
-    emit FeeAggregator.NonAllowlistedAssetWithdrawn(WITHDRAWER, s_assets[0], s_amounts[0]);
+    emit FeeAggregator.NonAllowlistedAssetWithdrawn(i_withdrawer, s_assetAmounts[0].asset, s_assetAmounts[0].amount);
     vm.expectEmit(address(s_feeAggregatorReceiver));
-    emit FeeAggregator.NonAllowlistedAssetWithdrawn(WITHDRAWER, s_assets[1], s_amounts[1]);
+    emit FeeAggregator.NonAllowlistedAssetWithdrawn(i_withdrawer, s_assetAmounts[1].asset, s_assetAmounts[1].amount);
 
-    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(WITHDRAWER, s_assets, s_amounts);
+    s_feeAggregatorReceiver.withdrawNonAllowlistedAssets(i_withdrawer, s_assetAmounts);
 
-    assertEq(s_mockWBTC.balanceOf(WITHDRAWER), s_amounts[0]);
-    assertEq(s_mockUSDC.balanceOf(WITHDRAWER), s_amounts[1]);
+    assertEq(s_mockWBTC.balanceOf(i_withdrawer), s_assetAmounts[0].amount);
+    assertEq(s_mockUSDC.balanceOf(i_withdrawer), s_assetAmounts[1].amount);
     assertEq(s_mockWBTC.balanceOf(address(s_feeAggregatorReceiver)), 0);
     assertEq(s_mockUSDC.balanceOf(address(s_feeAggregatorReceiver)), 0);
   }

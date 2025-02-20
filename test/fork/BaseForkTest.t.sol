@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {IFeeAggregator} from "src/interfaces/IFeeAggregator.sol";
 
@@ -26,7 +26,7 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
 
     s_feeAggregatorReceiver = new FeeAggregator(
       FeeAggregator.ConstructorParams({
-        admin: OWNER,
+        admin: i_owner,
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         linkToken: LINK,
         ccipRouterClient: CCIP_ROUTER,
@@ -36,7 +36,7 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
 
     s_feeAggregatorSender = new FeeAggregator(
       FeeAggregator.ConstructorParams({
-        admin: OWNER,
+        admin: i_owner,
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
         linkToken: LINK,
         ccipRouterClient: CCIP_ROUTER,
@@ -47,48 +47,50 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
     s_swapAutomator = new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
+        admin: i_owner,
         linkToken: LINK,
         feeAggregator: address(s_feeAggregatorReceiver),
         linkUsdFeed: LINK_USD_FEED,
         uniswapRouter: UNISWAP_ROUTER,
         uniswapQuoterV2: UNISWAP_QUOTER_V2,
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
 
     s_swapAutomatorSender = new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
+        admin: i_owner,
         linkToken: LINK,
         feeAggregator: address(s_feeAggregatorSender),
         linkUsdFeed: LINK_USD_FEED,
         uniswapRouter: UNISWAP_ROUTER,
         uniswapQuoterV2: UNISWAP_QUOTER_V2,
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
 
-    s_feeAggregatorReceiver.grantRole(Roles.PAUSER_ROLE, PAUSER);
-    s_feeAggregatorReceiver.grantRole(Roles.UNPAUSER_ROLE, UNPAUSER);
-    s_feeAggregatorReceiver.grantRole(Roles.ASSET_ADMIN_ROLE, ASSET_ADMIN);
-    s_feeAggregatorReceiver.grantRole(Roles.WITHDRAWER_ROLE, WITHDRAWER);
+    s_feeAggregatorReceiver.grantRole(Roles.PAUSER_ROLE, i_pauser);
+    s_feeAggregatorReceiver.grantRole(Roles.UNPAUSER_ROLE, i_unpauser);
+    s_feeAggregatorReceiver.grantRole(Roles.ASSET_ADMIN_ROLE, i_assetAdmin);
+    s_feeAggregatorReceiver.grantRole(Roles.WITHDRAWER_ROLE, i_withdrawer);
     s_feeAggregatorReceiver.grantRole(Roles.SWAPPER_ROLE, address(s_swapAutomator));
-    s_feeAggregatorSender.grantRole(Roles.PAUSER_ROLE, PAUSER);
-    s_feeAggregatorSender.grantRole(Roles.UNPAUSER_ROLE, UNPAUSER);
+    s_feeAggregatorSender.grantRole(Roles.PAUSER_ROLE, i_pauser);
+    s_feeAggregatorSender.grantRole(Roles.UNPAUSER_ROLE, i_unpauser);
     s_feeAggregatorSender.grantRole(Roles.SWAPPER_ROLE, address(s_swapAutomatorSender));
-    s_feeAggregatorSender.grantRole(Roles.WITHDRAWER_ROLE, WITHDRAWER);
-    s_swapAutomator.grantRole(Roles.ASSET_ADMIN_ROLE, ASSET_ADMIN);
-    s_swapAutomator.grantRole(Roles.PAUSER_ROLE, PAUSER);
-    s_swapAutomator.setForwarder(FORWARDER);
-    s_feeAggregatorSender.grantRole(Roles.BRIDGER_ROLE, BRIDGER);
-    s_feeAggregatorSender.grantRole(Roles.ASSET_ADMIN_ROLE, ASSET_ADMIN);
-    s_swapAutomatorSender.grantRole(Roles.ASSET_ADMIN_ROLE, ASSET_ADMIN);
-    s_swapAutomatorSender.grantRole(Roles.PAUSER_ROLE, PAUSER);
-    s_swapAutomatorSender.setForwarder(FORWARDER);
+    s_feeAggregatorSender.grantRole(Roles.WITHDRAWER_ROLE, i_withdrawer);
+    s_swapAutomator.grantRole(Roles.ASSET_ADMIN_ROLE, i_assetAdmin);
+    s_swapAutomator.grantRole(Roles.PAUSER_ROLE, i_pauser);
+    s_swapAutomator.setForwarder(i_forwarder);
+    s_feeAggregatorSender.grantRole(Roles.BRIDGER_ROLE, i_bridger);
+    s_feeAggregatorSender.grantRole(Roles.ASSET_ADMIN_ROLE, i_assetAdmin);
+    s_swapAutomatorSender.grantRole(Roles.ASSET_ADMIN_ROLE, i_assetAdmin);
+    s_swapAutomatorSender.grantRole(Roles.PAUSER_ROLE, i_pauser);
+    s_swapAutomatorSender.setForwarder(i_forwarder);
 
     address[] memory assets = new address[](6);
     assets[0] = WETH;
@@ -103,45 +105,61 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
     assets[4] = WBTC;
     assets[5] = LINK;
 
-    SwapAutomator.SwapParams[] memory swapParams = new SwapAutomator.SwapParams[](6);
-    swapParams[0] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(ETH_USD_FEED),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION,
-      swapInterval: SWAP_INTERVAL,
-      path: bytes.concat(bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+    SwapAutomator.AssetSwapParamsArgs[] memory assetSwapParamsArgs = new SwapAutomator.AssetSwapParamsArgs[](6);
+    assetSwapParamsArgs[0] = SwapAutomator.AssetSwapParamsArgs({
+      asset: WETH,
+      swapParams: SwapAutomator.SwapParams({
+        usdFeed: AggregatorV3Interface(ETH_USD_FEED),
+        maxSlippage: MAX_SLIPPAGE,
+        minSwapSizeUsd: MIN_SWAP_SIZE,
+        maxSwapSizeUsd: MAX_SWAP_SIZE,
+        maxPriceDeviation: MAX_PRICE_DEVIATION,
+        swapInterval: SWAP_INTERVAL,
+        stalenessThreshold: STALENESS_THRESHOLD,
+        path: bytes.concat(bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+      })
     });
-    swapParams[1] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(USDC_USD_FEED),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION,
-      swapInterval: SWAP_INTERVAL,
-      path: bytes.concat(bytes20(USDC), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+    assetSwapParamsArgs[1] = SwapAutomator.AssetSwapParamsArgs({
+      asset: USDC,
+      swapParams: SwapAutomator.SwapParams({
+        usdFeed: AggregatorV3Interface(USDC_USD_FEED),
+        maxSlippage: MAX_SLIPPAGE,
+        minSwapSizeUsd: MIN_SWAP_SIZE,
+        maxSwapSizeUsd: MAX_SWAP_SIZE,
+        maxPriceDeviation: MAX_PRICE_DEVIATION,
+        swapInterval: SWAP_INTERVAL,
+        stalenessThreshold: STALENESS_THRESHOLD,
+        path: bytes.concat(bytes20(USDC), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+      })
     });
-    swapParams[2] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(USDT_USD_FEED),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION,
-      swapInterval: SWAP_INTERVAL,
-      path: bytes.concat(bytes20(USDT), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+    assetSwapParamsArgs[2] = SwapAutomator.AssetSwapParamsArgs({
+      asset: USDT,
+      swapParams: SwapAutomator.SwapParams({
+        usdFeed: AggregatorV3Interface(USDT_USD_FEED),
+        maxSlippage: MAX_SLIPPAGE,
+        minSwapSizeUsd: MIN_SWAP_SIZE,
+        maxSwapSizeUsd: MAX_SWAP_SIZE,
+        maxPriceDeviation: MAX_PRICE_DEVIATION,
+        swapInterval: SWAP_INTERVAL,
+        stalenessThreshold: STALENESS_THRESHOLD,
+        path: bytes.concat(bytes20(USDT), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+      })
     });
-    swapParams[3] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(DAI_USD_FEED),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION,
-      swapInterval: SWAP_INTERVAL,
-      path: bytes.concat(bytes20(DAI), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+    assetSwapParamsArgs[3] = SwapAutomator.AssetSwapParamsArgs({
+      asset: DAI,
+      swapParams: SwapAutomator.SwapParams({
+        usdFeed: AggregatorV3Interface(DAI_USD_FEED),
+        maxSlippage: MAX_SLIPPAGE,
+        minSwapSizeUsd: MIN_SWAP_SIZE,
+        maxSwapSizeUsd: MAX_SWAP_SIZE,
+        maxPriceDeviation: MAX_PRICE_DEVIATION,
+        swapInterval: SWAP_INTERVAL,
+        stalenessThreshold: STALENESS_THRESHOLD,
+        path: bytes.concat(bytes20(DAI), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+      })
     });
     // swapParams[4] = SwapAutomator.SwapParams({
-    //   oracle: AggregatorV3Interface(MATIC_USD_FEED),
+    //   usdFeed: AggregatorV3Interface(MATIC_USD_FEED),
     //   maxSlippage: MAX_SLIPPAGE,
     //   minSwapSizeUsd: MIN_SWAP_SIZE,
     //   maxSwapSizeUsd: MAX_SWAP_SIZE,
@@ -149,35 +167,39 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
     //   swapInterval: SWAP_INTERVAL,
     //   path: bytes.concat(bytes20(MATIC), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
     // });
-    swapParams[4] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(WBTC_USD_FEED),
-      maxSlippage: MAX_SLIPPAGE,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: MAX_SWAP_SIZE,
-      maxPriceDeviation: MAX_PRICE_DEVIATION,
-      swapInterval: SWAP_INTERVAL,
-      path: bytes.concat(bytes20(WBTC), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+    assetSwapParamsArgs[4] = SwapAutomator.AssetSwapParamsArgs({
+      asset: WBTC,
+      swapParams: SwapAutomator.SwapParams({
+        usdFeed: AggregatorV3Interface(WBTC_USD_FEED),
+        maxSlippage: MAX_SLIPPAGE,
+        minSwapSizeUsd: MIN_SWAP_SIZE,
+        maxSwapSizeUsd: MAX_SWAP_SIZE,
+        maxPriceDeviation: MAX_PRICE_DEVIATION,
+        swapInterval: SWAP_INTERVAL,
+        stalenessThreshold: STALENESS_THRESHOLD,
+        path: bytes.concat(bytes20(WBTC), bytes3(uint24(3000)), bytes20(WETH), bytes3(uint24(3000)), bytes20(LINK))
+      })
     });
-    swapParams[5] = SwapAutomator.SwapParams({
-      oracle: AggregatorV3Interface(LINK_USD_FEED),
-      maxSlippage: 1,
-      minSwapSizeUsd: MIN_SWAP_SIZE,
-      maxSwapSizeUsd: type(uint128).max,
-      maxPriceDeviation: MAX_PRICE_DEVIATION,
-      swapInterval: SWAP_INTERVAL,
-      path: bytes.concat(bytes20(LINK), bytes3(uint24(3000)), bytes20(LINK))
+    assetSwapParamsArgs[5] = SwapAutomator.AssetSwapParamsArgs({
+      asset: LINK,
+      swapParams: SwapAutomator.SwapParams({
+        usdFeed: AggregatorV3Interface(LINK_USD_FEED),
+        maxSlippage: 1,
+        minSwapSizeUsd: MIN_SWAP_SIZE,
+        maxSwapSizeUsd: type(uint128).max,
+        maxPriceDeviation: MAX_PRICE_DEVIATION,
+        swapInterval: SWAP_INTERVAL,
+        stalenessThreshold: STALENESS_THRESHOLD,
+        path: bytes.concat(bytes20(LINK), bytes3(uint24(3000)), bytes20(LINK))
+      })
     });
 
-    _changePrank(ASSET_ADMIN);
+    _changePrank(i_assetAdmin);
     s_feeAggregatorSender.applyAllowlistedAssetUpdates(new address[](0), assets);
     s_feeAggregatorReceiver.applyAllowlistedAssetUpdates(new address[](0), assets);
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: assets, assetsSwapParams: swapParams})
-    );
-    s_swapAutomatorSender.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: assets, assetsSwapParams: swapParams})
-    );
-    _changePrank(OWNER);
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), assetSwapParamsArgs);
+    s_swapAutomatorSender.applyAssetSwapParamsUpdates(new address[](0), assetSwapParamsArgs);
+    _changePrank(i_owner);
 
     FeeAggregator.AllowlistedReceivers[] memory allowlistedReceivers = new FeeAggregator.AllowlistedReceivers[](1);
 
@@ -197,9 +219,9 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
     vm.label(address(s_feeAggregatorSender), "FeeAggregatorSender");
     vm.label(address(s_swapAutomator), "SwapAutomator");
     vm.label(address(s_swapAutomatorSender), "SwapAutomatorSender");
-    vm.label(OWNER, "OWNER");
-    vm.label(ASSET_ADMIN, "ASSET_ADMIN");
-    vm.label(CCIP_ROUTER, "CCIP_ROUTER_CLIENT");
+    vm.label(i_owner, "Owner");
+    vm.label(i_assetAdmin, "Asset Admin");
+    vm.label(CCIP_ROUTER, "CCIP Router");
     vm.label(LINK, "LINK");
     vm.label(WETH, "WETH");
     vm.label(USDC, "USDC");
@@ -207,14 +229,14 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
     vm.label(DAI, "DAI");
     // vm.label(MATIC, "MATIC");
     vm.label(WBTC, "WBTC");
-    vm.label(LINK_USD_FEED, "MOCK_LINK_USD_FEED");
-    vm.label(ETH_USD_FEED, "ETH_USD_FEED");
-    vm.label(USDC_USD_FEED, "USDC_USD_FEED");
-    vm.label(USDT_USD_FEED, "USDT_USD_FEED");
-    vm.label(DAI_USD_FEED, "DAI_USD_FEED");
-    vm.label(MATIC_USD_FEED, "MATIC_USD_FEED");
-    vm.label(WBTC_USD_FEED, "WBTC_USD_FEED");
-    vm.label(UNISWAP_ROUTER, "UNISWAP_ROUTER");
+    vm.label(LINK_USD_FEED, "LINK/USD Feed");
+    vm.label(ETH_USD_FEED, "ETH/USD Feed");
+    vm.label(USDC_USD_FEED, "USDC/USD Feed");
+    vm.label(USDT_USD_FEED, "USDT/USD Feed");
+    vm.label(DAI_USD_FEED, "DAI/USD Feed");
+    vm.label(MATIC_USD_FEED, "MATIC/USD Feed");
+    vm.label(WBTC_USD_FEED, "WBTC/USD Feed");
+    vm.label(UNISWAP_ROUTER, "Uniswap Router");
   }
 
   function test_baseForkTest() public {}
@@ -228,7 +250,7 @@ abstract contract BaseForkTest is BaseTest, Mainnet {
   }
 
   function _dealSwapAmount(address asset, address to, uint256 swapValue) internal {
-    uint256 assetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(asset).oracle);
+    uint256 assetPrice = _getAssetPrice(s_swapAutomator.getAssetSwapParams(asset).usdFeed);
     uint256 assetDecimals = IERC20Metadata(asset).decimals();
     uint256 amount = swapValue < assetPrice ? 10 ** assetDecimals : ((swapValue * 10 ** assetDecimals) / assetPrice);
     _deal(asset, to, amount);

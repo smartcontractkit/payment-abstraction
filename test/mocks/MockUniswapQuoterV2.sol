@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 /// @title This contract is used to mock the Uniswap V3 SwapRouter contract
 contract MockUniswapQuoterV2 {

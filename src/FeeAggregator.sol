@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
-
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+pragma solidity 0.8.26;
 
 import {EmergencyWithdrawer} from "src/EmergencyWithdrawer.sol";
 import {LinkReceiver} from "src/LinkReceiver.sol";
 import {NativeTokenReceiver} from "src/NativeTokenReceiver.sol";
 import {PausableWithAccessControl} from "src/PausableWithAccessControl.sol";
 import {IFeeAggregator} from "src/interfaces/IFeeAggregator.sol";
+import {Common} from "src/libraries/Common.sol";
 import {EnumerableBytesSet} from "src/libraries/EnumerableBytesSet.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {Roles} from "src/libraries/Roles.sol";
@@ -18,6 +15,9 @@ import {IRouterClient} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/
 import {ILinkAvailable} from "@chainlink/contracts-ccip/src/v0.8/ccip/interfaces/automation/ILinkAvailable.sol";
 import {Client} from "@chainlink/contracts-ccip/src/v0.8/ccip/libraries/Client.sol";
 import {ITypeAndVersion} from "@chainlink/contracts/src/v0.8/shared/interfaces/ITypeAndVersion.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /// @notice Contract which accrues assets and enables transferring out assets for swapping and further settlement to
@@ -129,7 +129,7 @@ contract FeeAggregator is
 
   /// @notice Mapping of chain selectors to the set of encoded addresses that are allowed to receive assets
   /// @dev We use bytes to store the addresses because CCIP transmits addresses as raw bytes.
-  mapping(uint64 => EnumerableBytesSet.BytesSet) private s_allowlistedReceivers;
+  mapping(uint64 chainSelector => EnumerableBytesSet.BytesSet receivers) private s_allowlistedReceivers;
 
   constructor(
     ConstructorParams memory params
@@ -150,7 +150,7 @@ contract FeeAggregator is
   function supportsInterface(
     bytes4 interfaceId
   ) public view override(PausableWithAccessControl) returns (bool) {
-    return interfaceId == type(IFeeAggregator).interfaceId || PausableWithAccessControl.supportsInterface(interfaceId);
+    return (interfaceId == type(IFeeAggregator).interfaceId || PausableWithAccessControl.supportsInterface(interfaceId));
   }
 
   // ================================================================
@@ -158,23 +158,25 @@ contract FeeAggregator is
   // ================================================================
 
   /// @inheritdoc IFeeAggregator
-  /// @dev precondition The caller must have the SWAPPER_ROLE
-  /// @dev precondition The assets must be allowlisted
-  /// @dev precondition The amounts must be greater than 0
+  /// @dev precondition - the caller must have the SWAPPER_ROLE
+  /// @dev precondition - the assetAmounts list must not be empty
+  /// @dev precondition - the assets must be allowlisted
+  /// @dev precondition - the amounts must be greater than 0
   function transferForSwap(
     address to,
-    address[] calldata assets,
-    uint256[] calldata amounts
+    Common.AssetAmount[] calldata assetAmounts
   ) external whenNotPaused onlyRole(Roles.SWAPPER_ROLE) {
-    _validateAssetTransferInputs(assets, amounts);
+    if (assetAmounts.length == 0) {
+      revert Errors.EmptyList();
+    }
 
-    for (uint256 i; i < assets.length; ++i) {
-      if (!s_allowlistedAssets.contains(assets[i])) {
-        revert Errors.AssetNotAllowlisted(assets[i]);
+    for (uint256 i; i < assetAmounts.length; ++i) {
+      address asset = assetAmounts[i].asset;
+      uint256 amount = assetAmounts[i].amount;
+
+      if (!s_allowlistedAssets.contains(asset)) {
+        revert Errors.AssetNotAllowlisted(asset);
       }
-
-      address asset = assets[i];
-      uint256 amount = amounts[i];
 
       _transferAsset(to, asset, amount);
       emit AssetTransferredForSwap(to, asset, amount);
@@ -182,15 +184,10 @@ contract FeeAggregator is
   }
 
   /// @inheritdoc IFeeAggregator
-  function areAssetsAllowlisted(
-    address[] calldata assets
-  ) external view returns (bool areAllAssetsAllowlisted, address nonAllowlistedAsset) {
-    for (uint256 i; i < assets.length; ++i) {
-      if (!s_allowlistedAssets.contains(assets[i])) {
-        return (false, assets[i]);
-      }
-    }
-    return (true, address(0));
+  function isAssetAllowlisted(
+    address asset
+  ) external view returns (bool isAllowlisted) {
+    return s_allowlistedAssets.contains(asset);
   }
 
   /// @notice Getter function to retrieve the list of allowlisted assets
@@ -234,7 +231,6 @@ contract FeeAggregator is
       revert Errors.EmptyList();
     }
 
-    // coverage:ignore-next
     Client.EVM2AnyMessage memory evm2AnyMessage =
       _buildBridgeAssetsMessage(bridgeAssetAmounts, bridgeReceiver, extraArgs);
 
@@ -343,24 +339,25 @@ contract FeeAggregator is
   }
 
   /// @notice Withdraws non allowlisted assets from the contract
-  /// @dev precondition The caller must have the WITHDRAWER_ROLE
-  /// @dev precondition The list of WithdrawAssetAmount must not be empty
-  /// @dev precondition The asset must not be the zero address
-  /// @dev precondition The amount must be greater than 0
-  /// @dev precondition The asset must not be allowlisted
+  /// @dev precondition - The contract must not be paused
+  /// @dev precondition - The caller must have the WITHDRAWER_ROLE
+  /// @dev precondition - The list of assetAmounts must not be empty
+  /// @dev precondition - The asset must not be the zero address
+  /// @dev precondition - The amount must be greater than 0
+  /// @dev precondition - The asset must not be allowlisted
   /// @param to The address to transfer the assets to
-  /// @param assets The list of assets to withdraw
-  /// @param amounts The list of asset amounts to withdraw
+  /// @param assetAmounts The list of assets and amounts to withdraw
   function withdrawNonAllowlistedAssets(
     address to,
-    address[] calldata assets,
-    uint256[] calldata amounts
-  ) external onlyRole(Roles.WITHDRAWER_ROLE) {
-    _validateAssetTransferInputs(assets, amounts);
+    Common.AssetAmount[] calldata assetAmounts
+  ) external whenNotPaused onlyRole(Roles.WITHDRAWER_ROLE) {
+    if (assetAmounts.length == 0) {
+      revert Errors.EmptyList();
+    }
 
-    for (uint256 i; i < assets.length; ++i) {
-      address asset = assets[i];
-      uint256 amount = amounts[i];
+    for (uint256 i; i < assetAmounts.length; ++i) {
+      address asset = assetAmounts[i].asset;
+      uint256 amount = assetAmounts[i].amount;
 
       if (s_allowlistedAssets.contains(asset)) {
         revert Errors.AssetAllowlisted(asset);
@@ -372,11 +369,12 @@ contract FeeAggregator is
   }
 
   /// @notice Withdraws native tokens from the contract to the specified address
-  /// @dev precondition The caller must have the WITHDRAWER_ROLE
-  /// @dev precondition The wrapped native token must not be allowlisted
+  /// @dev precondition - The contract must not be paused
+  /// @dev precondition - The caller must have the WITHDRAWER_ROLE
+  /// @dev precondition - The wrapped native token must not be allowlisted
   /// @param to The address to transfer the native tokens to
   /// @param amount The amount of native tokens to transfer
-  function withdrawNative(address payable to, uint256 amount) external onlyRole(Roles.WITHDRAWER_ROLE) {
+  function withdrawNative(address payable to, uint256 amount) external whenNotPaused onlyRole(Roles.WITHDRAWER_ROLE) {
     address wrappedNativeToken = address(s_wrappedNativeToken);
 
     if (s_allowlistedAssets.contains(wrappedNativeToken)) {

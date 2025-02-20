@@ -1,24 +1,25 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {SwapAutomator} from "src/SwapAutomator.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
 
-contract ConstructorUnitTests is BaseUnitTest {
+contract SwapAutomator_ConstructorUnitTests is BaseUnitTest {
   function test_constructor_RevertWhen_LINKAddressIsZero() public {
     vm.expectRevert(Errors.InvalidZeroAddress.selector);
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
+        admin: i_owner,
         linkToken: address(0),
         feeAggregator: address(s_feeAggregatorReceiver),
-        linkUsdFeed: MOCK_LINK_USD_FEED,
-        uniswapRouter: MOCK_UNISWAP_ROUTER,
-        uniswapQuoterV2: MOCK_UNISWAP_QUOTER_V2,
+        linkUsdFeed: i_mockLinkUSDFeed,
+        uniswapRouter: i_mockUniswapRouter,
+        uniswapQuoterV2: i_mockUniswapQuoterV2,
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
   }
@@ -28,14 +29,15 @@ contract ConstructorUnitTests is BaseUnitTest {
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
-        linkToken: MOCK_LINK,
+        admin: i_owner,
+        linkToken: i_mockLink,
         feeAggregator: address(0),
-        linkUsdFeed: MOCK_LINK_USD_FEED,
-        uniswapRouter: MOCK_UNISWAP_ROUTER,
-        uniswapQuoterV2: MOCK_UNISWAP_QUOTER_V2,
+        linkUsdFeed: i_mockLinkUSDFeed,
+        uniswapRouter: i_mockUniswapRouter,
+        uniswapQuoterV2: i_mockUniswapQuoterV2,
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
   }
@@ -45,14 +47,15 @@ contract ConstructorUnitTests is BaseUnitTest {
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
-        linkToken: MOCK_LINK,
+        admin: i_owner,
+        linkToken: i_mockLink,
         feeAggregator: address(s_feeAggregatorReceiver),
         linkUsdFeed: address(0),
-        uniswapRouter: MOCK_UNISWAP_ROUTER,
-        uniswapQuoterV2: MOCK_UNISWAP_QUOTER_V2,
+        uniswapRouter: i_mockUniswapRouter,
+        uniswapQuoterV2: i_mockUniswapQuoterV2,
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
   }
@@ -62,14 +65,15 @@ contract ConstructorUnitTests is BaseUnitTest {
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
-        linkToken: MOCK_LINK,
+        admin: i_owner,
+        linkToken: i_mockLink,
         feeAggregator: address(s_feeAggregatorReceiver),
-        linkUsdFeed: MOCK_LINK_USD_FEED,
+        linkUsdFeed: i_mockLinkUSDFeed,
         uniswapRouter: address(0),
-        uniswapQuoterV2: MOCK_UNISWAP_QUOTER_V2,
+        uniswapQuoterV2: i_mockUniswapQuoterV2,
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
   }
@@ -79,14 +83,15 @@ contract ConstructorUnitTests is BaseUnitTest {
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
-        linkToken: MOCK_LINK,
+        admin: i_owner,
+        linkToken: i_mockLink,
         feeAggregator: address(s_feeAggregatorReceiver),
-        linkUsdFeed: MOCK_LINK_USD_FEED,
-        uniswapRouter: MOCK_UNISWAP_ROUTER,
+        linkUsdFeed: i_mockLinkUSDFeed,
+        uniswapRouter: i_mockUniswapRouter,
         uniswapQuoterV2: address(0),
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
   }
@@ -98,14 +103,15 @@ contract ConstructorUnitTests is BaseUnitTest {
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
-        linkToken: MOCK_LINK,
+        admin: i_owner,
+        linkToken: i_mockLink,
         feeAggregator: address(s_feeAggregatorReceiver),
-        linkUsdFeed: MOCK_LINK_USD_FEED,
-        uniswapRouter: MOCK_UNISWAP_ROUTER,
-        uniswapQuoterV2: MOCK_UNISWAP_QUOTER_V2,
+        linkUsdFeed: i_mockLinkUSDFeed,
+        uniswapRouter: i_mockUniswapRouter,
+        uniswapQuoterV2: i_mockUniswapQuoterV2,
         deadlineDelay: MIN_DEADLINE_DELAY - 1,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
   }
@@ -117,14 +123,15 @@ contract ConstructorUnitTests is BaseUnitTest {
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
-        linkToken: MOCK_LINK,
+        admin: i_owner,
+        linkToken: i_mockLink,
         feeAggregator: address(s_feeAggregatorReceiver),
-        linkUsdFeed: MOCK_LINK_USD_FEED,
-        uniswapRouter: MOCK_UNISWAP_ROUTER,
-        uniswapQuoterV2: MOCK_UNISWAP_QUOTER_V2,
+        linkUsdFeed: i_mockLinkUSDFeed,
+        uniswapRouter: i_mockUniswapRouter,
+        uniswapQuoterV2: i_mockUniswapQuoterV2,
         deadlineDelay: MAX_DEADLINE_DELAY + 1,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
   }
@@ -134,52 +141,56 @@ contract ConstructorUnitTests is BaseUnitTest {
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
-        linkToken: MOCK_LINK,
+        admin: i_owner,
+        linkToken: i_mockLink,
         feeAggregator: address(s_feeAggregatorReceiver),
-        linkUsdFeed: MOCK_LINK_USD_FEED,
-        uniswapRouter: MOCK_UNISWAP_ROUTER,
+        linkUsdFeed: i_mockLinkUSDFeed,
+        uniswapRouter: i_mockUniswapRouter,
         uniswapQuoterV2: address(0),
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: address(0)
+        linkReceiver: address(0),
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
   }
 
   function test_constructor() public {
     vm.expectEmit();
+    emit SwapAutomator.LinkTokenSet(i_mockLink);
+    vm.expectEmit();
+    emit SwapAutomator.LINKUsdFeedSet(i_mockLinkUSDFeed);
+    vm.expectEmit();
+    emit SwapAutomator.UniswapRouterSet(i_mockUniswapRouter);
+    vm.expectEmit();
+    emit SwapAutomator.UniswapQuoterV2Set(i_mockUniswapQuoterV2);
+    vm.expectEmit();
     emit SwapAutomator.FeeAggregatorSet(address(s_feeAggregatorReceiver));
     vm.expectEmit();
     emit SwapAutomator.DeadlineDelaySet(DEADLINE_DELAY);
     vm.expectEmit();
-    emit SwapAutomator.LinkReceiverSet(RECEIVER);
+    emit SwapAutomator.LinkReceiverSet(i_receiver);
     vm.expectEmit();
-    emit SwapAutomator.LinkTokenSet(MOCK_LINK);
-    vm.expectEmit();
-    emit SwapAutomator.LINKUsdFeedSet(MOCK_LINK_USD_FEED);
-    vm.expectEmit();
-    emit SwapAutomator.UniswapRouterSet(MOCK_UNISWAP_ROUTER);
-    vm.expectEmit();
-    emit SwapAutomator.UniswapQuoterV2Set(MOCK_UNISWAP_QUOTER_V2);
+    emit SwapAutomator.MaxPerformDataSizeSet(MAX_PERFORM_DATA_SIZE);
 
     new SwapAutomator(
       SwapAutomator.ConstructorParams({
         adminRoleTransferDelay: DEFAULT_ADMIN_TRANSFER_DELAY,
-        admin: OWNER,
-        linkToken: MOCK_LINK,
+        admin: i_owner,
+        linkToken: i_mockLink,
         feeAggregator: address(s_feeAggregatorReceiver),
-        linkUsdFeed: MOCK_LINK_USD_FEED,
-        uniswapRouter: MOCK_UNISWAP_ROUTER,
-        uniswapQuoterV2: MOCK_UNISWAP_QUOTER_V2,
+        linkUsdFeed: i_mockLinkUSDFeed,
+        uniswapRouter: i_mockUniswapRouter,
+        uniswapQuoterV2: i_mockUniswapQuoterV2,
         deadlineDelay: DEADLINE_DELAY,
-        linkReceiver: RECEIVER
+        linkReceiver: i_receiver,
+        maxPerformDataSize: MAX_PERFORM_DATA_SIZE
       })
     );
-    assertEq(address(s_swapAutomator.getLinkToken()), MOCK_LINK);
-    assertEq(address(s_swapAutomator.getLINKUsdFeed()), MOCK_LINK_USD_FEED);
+    assertEq(address(s_swapAutomator.getLinkToken()), i_mockLink);
+    assertEq(address(s_swapAutomator.getLINKUsdFeed()), i_mockLinkUSDFeed);
     assertEq(address(s_swapAutomator.getFeeAggregator()), address(s_feeAggregatorReceiver));
-    assertEq(address(s_swapAutomator.getUniswapRouter()), MOCK_UNISWAP_ROUTER);
-    assertEq(address(s_swapAutomator.getUniswapQuoterV2()), MOCK_UNISWAP_QUOTER_V2);
+    assertEq(address(s_swapAutomator.getUniswapRouter()), i_mockUniswapRouter);
+    assertEq(address(s_swapAutomator.getUniswapQuoterV2()), i_mockUniswapQuoterV2);
   }
 
   function test_typeAndVersion() public {

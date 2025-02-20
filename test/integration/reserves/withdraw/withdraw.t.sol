@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {Reserves} from "src/Reserves.sol";
 import {Errors} from "src/libraries/Errors.sol";
-import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
+import {BaseIntegrationTest} from "test/integration/BaseIntegrationTest.t.sol";
 
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 
-contract Reserves_WithdrawUnitTest is BaseUnitTest {
+contract Reserves_WithdrawUnitTest is BaseIntegrationTest {
   Reserves.Earmark[] private s_earmarks;
 
   function setUp() public {
-    _changePrank(EARMARK_MANAGER);
+    _changePrank(i_earmarkManager);
+
     deal(address(s_mockLINK), address(s_reserves), 10e18);
     s_earmarks.push(Reserves.Earmark(s_serviceProviders[0], 4e18, "earmarkBytes1"));
     s_earmarks.push(Reserves.Earmark(s_serviceProviders[1], 6e18, "earmarkBytes2"));
@@ -88,9 +89,7 @@ contract Reserves_WithdrawUnitTest is BaseUnitTest {
     s_reserves.withdraw(s_serviceProviders);
   }
 
-  function test_withdraw_RevertWhen_ContractIsPaused() public {
-    _changePrank(PAUSER);
-    s_reserves.emergencyPause();
+  function test_withdraw_RevertWhen_ContractIsPaused() public givenContractIsPaused(address(s_reserves)) {
     vm.expectRevert(Pausable.EnforcedPause.selector);
     s_reserves.withdraw(s_serviceProviders);
   }

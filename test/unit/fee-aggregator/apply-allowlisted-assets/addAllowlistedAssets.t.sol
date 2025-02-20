@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {FeeAggregator} from "src/FeeAggregator.sol";
 import {FeeAggregator} from "src/FeeAggregator.sol";
@@ -14,9 +14,9 @@ contract AddAllowlistedAssetsUnitTest is BaseUnitTest {
   address[] private s_assets;
 
   function setUp() public {
-    s_assets.push(ASSET_1);
-    s_assets.push(ASSET_2);
-    _changePrank(ASSET_ADMIN);
+    s_assets.push(i_asset1);
+    s_assets.push(i_asset2);
+    _changePrank(i_assetAdmin);
   }
 
   function test_applyAllowlistedAssetUpdates_RevertWhen_CallerDoesNotHaveASSET_ADMIN_ROLE()
@@ -24,7 +24,7 @@ contract AddAllowlistedAssetsUnitTest is BaseUnitTest {
     whenCallerIsNotAssetManager
   {
     vm.expectRevert(
-      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, OWNER, Roles.ASSET_ADMIN_ROLE)
+      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, i_owner, Roles.ASSET_ADMIN_ROLE)
     );
     s_feeAggregatorSender.applyAllowlistedAssetUpdates(new address[](0), s_assets);
   }
@@ -52,34 +52,31 @@ contract AddAllowlistedAssetsUnitTest is BaseUnitTest {
 
   function test_applyAllowlistedAssetUpdates_SingleAsset() external {
     address[] memory assets = new address[](1);
-    assets[0] = ASSET_1;
+    assets[0] = i_asset1;
     vm.expectEmit(address(s_feeAggregatorSender));
-    emit FeeAggregator.AssetAddedToAllowlist(ASSET_1);
+    emit FeeAggregator.AssetAddedToAllowlist(i_asset1);
     s_feeAggregatorSender.applyAllowlistedAssetUpdates(new address[](0), assets);
 
     address[] memory allowlistedAssets = s_feeAggregatorSender.getAllowlistedAssets();
-    (bool areAssetsAllowlisted, address asset) = s_feeAggregatorSender.areAssetsAllowlisted(assets);
 
-    assertTrue(areAssetsAllowlisted);
-    assertEq(asset, address(0));
+    assertTrue(s_feeAggregatorSender.isAssetAllowlisted(i_asset1));
     assertTrue(allowlistedAssets.length == 1);
-    assertTrue(allowlistedAssets[0] == ASSET_1);
+    assertTrue(allowlistedAssets[0] == i_asset1);
   }
 
   function test_applyAllowlistedAssetUpdates_MultipleAssets() public {
     vm.expectEmit(address(s_feeAggregatorSender));
-    emit FeeAggregator.AssetAddedToAllowlist(ASSET_1);
+    emit FeeAggregator.AssetAddedToAllowlist(i_asset1);
     vm.expectEmit(address(s_feeAggregatorSender));
-    emit FeeAggregator.AssetAddedToAllowlist(ASSET_2);
+    emit FeeAggregator.AssetAddedToAllowlist(i_asset2);
     s_feeAggregatorSender.applyAllowlistedAssetUpdates(new address[](0), s_assets);
 
     address[] memory allowlistedAssets = s_feeAggregatorSender.getAllowlistedAssets();
-    (bool areAssetsAllowlisted, address asset) = s_feeAggregatorSender.areAssetsAllowlisted(allowlistedAssets);
 
-    assertTrue(areAssetsAllowlisted);
-    assertEq(asset, address(0));
+    assertTrue(s_feeAggregatorSender.isAssetAllowlisted(i_asset1));
+    assertTrue(s_feeAggregatorSender.isAssetAllowlisted(i_asset2));
     assertTrue(allowlistedAssets.length == 2);
-    assertTrue(allowlistedAssets[0] == ASSET_1);
-    assertTrue(allowlistedAssets[1] == ASSET_2);
+    assertTrue(allowlistedAssets[0] == i_asset1);
+    assertTrue(allowlistedAssets[1] == i_asset2);
   }
 }

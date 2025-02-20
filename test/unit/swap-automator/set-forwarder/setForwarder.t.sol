@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {SwapAutomator} from "src/SwapAutomator.sol";
 import {Errors} from "src/libraries/Errors.sol";
@@ -10,17 +10,17 @@ import {IAccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 contract SetForwarderUnitTest is BaseUnitTest {
   function test_setForwarder_RevertWhen_CallerDoesNotHaveDEFAULT_ADMIN_ROLE() public whenCallerIsNotAdmin {
     vm.expectRevert(
-      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, NON_OWNER, DEFAULT_ADMIN_ROLE)
+      abi.encodeWithSelector(IAccessControl.AccessControlUnauthorizedAccount.selector, i_nonOwner, DEFAULT_ADMIN_ROLE)
     );
-    s_swapAutomator.setForwarder(FORWARDER);
+    s_swapAutomator.setForwarder(i_forwarder);
   }
 
   function test_setForwarder_WhenContractIsPaused() public givenContractIsPaused(address(s_swapAutomator)) {
     vm.expectEmit(address(s_swapAutomator));
-    emit SwapAutomator.ForwarderSet(FORWARDER);
-    s_swapAutomator.setForwarder(FORWARDER);
+    emit SwapAutomator.ForwarderSet(i_forwarder);
+    s_swapAutomator.setForwarder(i_forwarder);
 
-    assertEq(FORWARDER, s_swapAutomator.getForwarder());
+    assertEq(i_forwarder, s_swapAutomator.getForwarder());
   }
 
   function test_setForwarder_RevertWhen_ForwarderAddressIsZero() public {
@@ -29,17 +29,17 @@ contract SetForwarderUnitTest is BaseUnitTest {
   }
 
   function test_setForwarder_RevertWhen_ForwarderAddressNotUpdated() public {
-    _changePrank(OWNER);
-    s_swapAutomator.setForwarder(FORWARDER);
-    vm.expectRevert(Errors.ForwarderNotUpdated.selector);
-    s_swapAutomator.setForwarder(FORWARDER);
+    _changePrank(i_owner);
+    s_swapAutomator.setForwarder(i_forwarder);
+    vm.expectRevert(Errors.ValueNotUpdated.selector);
+    s_swapAutomator.setForwarder(i_forwarder);
   }
 
   function test_setForwarder() public {
     vm.expectEmit(address(s_swapAutomator));
-    emit SwapAutomator.ForwarderSet(FORWARDER);
-    s_swapAutomator.setForwarder(FORWARDER);
+    emit SwapAutomator.ForwarderSet(i_forwarder);
+    s_swapAutomator.setForwarder(i_forwarder);
 
-    assertEq(FORWARDER, s_swapAutomator.getForwarder());
+    assertEq(i_forwarder, s_swapAutomator.getForwarder());
   }
 }

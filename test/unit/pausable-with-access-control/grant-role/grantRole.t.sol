@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
+import {PausableWithAccessControl} from "src/PausableWithAccessControl.sol";
 import {BaseUnitTest} from "test/unit/BaseUnitTest.t.sol";
 
 import {IAccessControlDefaultAdminRules} from
@@ -8,22 +9,32 @@ import {IAccessControlDefaultAdminRules} from
 
 contract GrantRoleUnitTests is BaseUnitTest {
   function setUp() public {
-    _changePrank(OWNER);
+    _changePrank(i_owner);
   }
 
-  function test_grantRole_RevertWhen_GrantingDefaultAdminRole() public performForAllContractsPausableWithAccessControl {
+  function test_grantRole_RevertWhen_GrantingDefaultAdminRole()
+    public
+    performForAllContracts(CommonContracts.PAUSABLE_WITH_ACCESS_CONTROL)
+  {
     vm.expectRevert(IAccessControlDefaultAdminRules.AccessControlEnforcedDefaultAdminRules.selector);
-    s_contractUnderTest.grantRole(DEFAULT_ADMIN_ROLE, address(this));
+    PausableWithAccessControl(s_contractUnderTest).grantRole(DEFAULT_ADMIN_ROLE, address(this));
   }
 
-  function test_grantRole_ShouldEnumerateRoleAfterGranting() public performForAllContractsPausableWithAccessControl {
-    assertEq(s_contractUnderTest.getRoleMemberCount(TEST_ROLE), 0);
-    assertEq(s_contractUnderTest.getRoleMembers(TEST_ROLE), new address[](0));
-    s_contractUnderTest.grantRole(TEST_ROLE, PAUSER);
-    assertEq(s_contractUnderTest.getRoleMemberCount(TEST_ROLE), 1);
-    assertEq(s_contractUnderTest.getRoleMember(TEST_ROLE, 0), PAUSER);
+  function test_grantRole_ShouldEnumerateRoleAfterGranting()
+    public
+    performForAllContracts(CommonContracts.PAUSABLE_WITH_ACCESS_CONTROL)
+  {
+    assertEq(PausableWithAccessControl(s_contractUnderTest).getRoleMemberCount(TEST_ROLE), 0);
+    assertEq(PausableWithAccessControl(s_contractUnderTest).getRoleMembers(TEST_ROLE), new address[](0));
+
+    PausableWithAccessControl(s_contractUnderTest).grantRole(TEST_ROLE, i_unpauser);
+
+    assertEq(PausableWithAccessControl(s_contractUnderTest).getRoleMemberCount(TEST_ROLE), 1);
+    assertEq(PausableWithAccessControl(s_contractUnderTest).getRoleMember(TEST_ROLE, 0), i_unpauser);
+
     address[] memory members = new address[](1);
-    members[0] = PAUSER;
-    assertEq(s_contractUnderTest.getRoleMembers(TEST_ROLE), members);
+    members[0] = i_unpauser;
+
+    assertEq(PausableWithAccessControl(s_contractUnderTest).getRoleMembers(TEST_ROLE), members);
   }
 }

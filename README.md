@@ -2,8 +2,6 @@
 
 Payment Abstraction is a system of onchain smart contracts that aim to reduce payment friction for Chainlink services. The system is designed to (1) accept fees in various tokens across multiple blockchain networks, (2) consolidate fee tokens onto a single blockchain network via Chainlink CCIP, (3) convert fee tokens into LINK via Chainlink Automation, Price Feeds, and existing Automated Market Maker (AMM) Decentralized Exchange (DEX) contracts, and (4) pass converted LINK into a dedicated contract for withdrawal by Chainlink Network service providers.
 
-Please note: This repository is undergoing a code audit and may not include audit remediations or other updates. 
-
 ## Usage
 
 ### Pre-requisites
@@ -47,24 +45,10 @@ $ forge coverage --report lcov
 node tools/coverage.cjs
 ```
 
-- Note: the `tools/coverage.ignore.json` file tracks the ignored branches for coverage checks. When the line changes, the file also has to be updated. To find the branches that are not covered, the script will print lines that look like:
+- Note: the `tools/coverage.ignore.json` file tracks the ignored contracts for coverage checks (the script natively ignore test and script files). Example:
 
 ```
-{ line: 298, block: 20, branch: 0, taken: 0 }
-```
-
-- The line above means that Line 298, Block 20, first branch is not covered - so we can ignore it:
-
-```
-  "FeeAggregator": {
-    "branches": [
-      {
-        "line": 298,
-        "block": 20,
-        "branch": 0
-      }
-    ]
-  },
+["FeeAggregator"]
 ```
 
 **Run static analysis on all files:**
@@ -73,18 +57,32 @@ node tools/coverage.cjs
 $ slither .
 ```
 
-**Testing PausableWithAccessControl**
+**Testing common contracts**
 
-This abstract contract is inherited by many of the contracts in this repo. To ensure full test coverage without
-duplicating tests, add the new contract in the following list in `test/unit/BaseUnitTest.t.sol`. The `performForAllContractsPausableWithAccessControl` modifier must be added to all the shared tests.
+Some abstract contracts such as `EmergencyWithdrawer` are inherited by many of the contracts in this repo. To ensure full test coverage without duplicating tests, add the new contract in the following list from `test/BaseTest.t.sol`:
 
+```solidity
+// BaseTest.t.sol
+  mapping(CommonContracts commonContracts => address[]) internal s_commonContracts;
 ```
+
+```solidity
 // BaseUnitTest.t.sol
 // Add contracts to the list of contracts that are PausableWithAccessControl
-s_contractsPausableWithAccessControl.push(address(s_feeAggregatorSender));
-s_contractsPausableWithAccessControl.push(address(s_feeAggregatorReceiver));
-s_contractsPausableWithAccessControl.push(address(s_swapAutomator));
-s_contractsPausableWithAccessControl.push(address(s_reserves));
+s_commonContracts[CommonContracts.PAUSABLE_WITH_ACCESS_CONTROL].push(address(s_feeAggregatorSender));
+s_commonContracts[CommonContracts.PAUSABLE_WITH_ACCESS_CONTROL].push(address(s_feeAggregatorReceiver));
+s_commonContracts[CommonContracts.PAUSABLE_WITH_ACCESS_CONTROL].push(address(s_swapAutomator));
+s_commonContracts[CommonContracts.PAUSABLE_WITH_ACCESS_CONTROL].push(address(s_reserves));
+```
+
+The `performForAllContracts` modifier must be added to all the shared tests. This modifier takes in a `CommonContracts` enum type as an argument. If a new shared contract is added a new type should also be added to the enum.
+
+```solidity
+enum CommonContracts {
+  PAUSABLE_WITH_ACCESS_CONTROL,
+  EMERGENCY_WITHDRAWER,
+  LINK_RECEIVER
+}
 ```
 
 ### Format

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 abstract contract Mainnet {
   address internal constant LINK = 0x514910771AF9Ca656af840dff83E8264EcF986CA;

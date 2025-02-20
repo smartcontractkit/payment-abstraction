@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {IFeeAggregator} from "src/interfaces/IFeeAggregator.sol";
 
@@ -52,22 +52,22 @@ contract AssetHandler is Constants, Test {
     maxSwapSize = uint128(bound(maxSwapSize, MIN_SWAP_SIZE_UPPER_BOUND, MAX_SWAP_SIZE_UPPER_BOUND));
 
     SwapAutomator.SwapParams memory currentSwapParams = s_swapAutomator.getAssetSwapParams(allowlistedAssets[index]);
-    SwapAutomator.SwapParams[] memory swapParams = new SwapAutomator.SwapParams[](1);
-    address[] memory swapAssets = new address[](1);
-    swapAssets[0] = allowlistedAssets[index];
-    swapParams[0] = SwapAutomator.SwapParams({
-      oracle: currentSwapParams.oracle,
-      maxSlippage: maxSlippage,
-      minSwapSizeUsd: minSwapSize,
-      maxSwapSizeUsd: maxSwapSize,
-      maxPriceDeviation: maxPriceDeviation,
-      swapInterval: currentSwapParams.swapInterval,
-      path: currentSwapParams.path
+    SwapAutomator.AssetSwapParamsArgs[] memory assetSwapParamsArgs = new SwapAutomator.AssetSwapParamsArgs[](1);
+    assetSwapParamsArgs[0] = SwapAutomator.AssetSwapParamsArgs({
+      asset: allowlistedAssets[index],
+      swapParams: SwapAutomator.SwapParams({
+        usdFeed: currentSwapParams.usdFeed,
+        maxSlippage: maxSlippage,
+        minSwapSizeUsd: minSwapSize,
+        maxSwapSizeUsd: maxSwapSize,
+        maxPriceDeviation: maxPriceDeviation,
+        swapInterval: currentSwapParams.swapInterval,
+        stalenessThreshold: STALENESS_THRESHOLD,
+        path: currentSwapParams.path
+      })
     });
 
-    s_swapAutomator.applyAssetSwapParamsUpdates(
-      new address[](0), SwapAutomator.AssetSwapParamsArgs({assets: swapAssets, assetsSwapParams: swapParams})
-    );
+    s_swapAutomator.applyAssetSwapParamsUpdates(new address[](0), assetSwapParamsArgs);
   }
 
   function test_assetHandlerTest() public {}

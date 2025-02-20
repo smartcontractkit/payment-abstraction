@@ -1,0 +1,2 @@
+supportsInterface.t.sol
+└── it should not support the IAny2EVMMessageReceiver interface

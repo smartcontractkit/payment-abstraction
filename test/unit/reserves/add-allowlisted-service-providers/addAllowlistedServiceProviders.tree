@@ -9,7 +9,6 @@ addAllowlistedServiceProviders.t.sol
         │   └── it should revert
         ├── when the service provider is already allowlisted
         │   └── it should continue with the next service provider
-        ├── when the service provider is not already allowlisted
+        └── when the service provider is not already allowlisted
             ├── it should add the service provider to the allow list
             └── it should emit an ServiceProviderAllowlisted event
-        

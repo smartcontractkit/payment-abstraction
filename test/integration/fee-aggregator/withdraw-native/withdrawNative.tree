@@ -1,15 +1,18 @@
 withdrawNative.t.sol
-├─ when the caller does not have the WITHDRAWER_ROLE
+├─ given the contract is paused
 │  └─ it should revert
-└─ when the caller does have the WITHDRAWER_ROLE
-   ├─ when the recipient is the zero address
+└─ given the contract is not paused
+   ├─ when the caller does not have the WITHDRAWER_ROLE
    │  └─ it should revert
-   └─ when the recipient is not the zero address
-      ├─ given the asset is allowlisted
+   └─ when the caller does have the WITHDRAWER_ROLE
+      ├─ when the recipient is the zero address
       │  └─ it should revert
-      └─ give the asset is not allowlisted
-         ├─ when the transferred amount is zero
-         │  └─ it shold revert
-         └─ when the transferred ammount is not zero
-            ├─ it should transfer the native tokens to the specified address
-            └─ it should emit an NativeTokenWithdrawn event
+      └─ when the recipient is not the zero address
+         ├─ given the asset is allowlisted
+         │  └─ it should revert
+         └─ give the asset is not allowlisted
+            ├─ when the transferred amount is zero
+            │  └─ it shold revert
+            └─ when the transferred ammount is not zero
+               ├─ it should transfer the native tokens to the specified address
+               └─ it should emit an NativeTokenWithdrawn event

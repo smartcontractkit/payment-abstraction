@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {IFeeAggregator} from "src/interfaces/IFeeAggregator.sol";
 
 import {EmergencyWithdrawer} from "src/EmergencyWithdrawer.sol";
 import {LinkReceiver} from "src/LinkReceiver.sol";
 import {NativeTokenReceiver} from "src/NativeTokenReceiver.sol";
+import {Common} from "src/libraries/Common.sol";
 import {Errors} from "src/libraries/Errors.sol";
 import {Roles} from "src/libraries/Roles.sol";
 
@@ -49,9 +50,6 @@ contract FeeRouter is ITypeAndVersion, EmergencyWithdrawer, LinkReceiver, Native
   /// @param feeAggregatorReceiver The address of the fee aggregator receiver
   event FeeAggregatorSet(address feeAggregatorReceiver);
 
-  /// @notice This error is thrown when setting a fee aggregator that does not support the IFeeAggregator interface
-  error InvalidFeeAggregator(address feeAggregator);
-
   string public constant override typeAndVersion = "FeeRouter v1.0.0";
 
   /// @notice The fee aggregator receiver contract
@@ -64,13 +62,7 @@ contract FeeRouter is ITypeAndVersion, EmergencyWithdrawer, LinkReceiver, Native
     LinkReceiver(params.linkToken)
     NativeTokenReceiver(params.wrappedNativeToken)
   {
-    if (params.feeAggregator == address(0)) {
-      revert Errors.InvalidZeroAddress();
-    }
-
-    s_feeAggregator = IFeeAggregator(params.feeAggregator);
-
-    emit FeeAggregatorSet(params.feeAggregator);
+    _setFeeAggregator(params.feeAggregator);
   }
 
   // ================================================================
@@ -80,26 +72,26 @@ contract FeeRouter is ITypeAndVersion, EmergencyWithdrawer, LinkReceiver, Native
   /// @dev Transfers allowlisted assets to the fee aggregator
   /// @dev precondition - the caller must have the BRIDGER_ROLE
   /// @dev precondition - the contract must not be paused
+  /// @dev precondition - the list of assetAmounts must not be empty
   /// @dev precondition - the transferred assets must be allowlisted
-  /// @param assets The list of allowlisted assets to transfer
-  /// @param amounts The list of allowlisted asset amounts to transfer
+  /// @param assetAmounts The list of allowlisted assets and amounts to transfer
   function transferAllowlistedAssets(
-    address[] calldata assets,
-    uint256[] calldata amounts
+    Common.AssetAmount[] calldata assetAmounts
   ) external onlyRole(Roles.BRIDGER_ROLE) whenNotPaused {
-    _validateAssetTransferInputs(assets, amounts);
+    if (assetAmounts.length == 0) {
+      revert Errors.EmptyList();
+    }
 
     IFeeAggregator feeAggregator = s_feeAggregator;
 
-    (bool areAssetsAllowlisted, address nonAllowlistedAsset) = feeAggregator.areAssetsAllowlisted(assets);
+    for (uint256 i; i < assetAmounts.length; ++i) {
+      address asset = assetAmounts[i].asset;
 
-    if (!areAssetsAllowlisted) {
-      revert Errors.AssetNotAllowlisted(nonAllowlistedAsset);
-    }
+      if (!feeAggregator.isAssetAllowlisted(asset)) {
+        revert Errors.AssetNotAllowlisted(asset);
+      }
 
-    for (uint256 i = 0; i < assets.length; ++i) {
-      address asset = assets[i];
-      uint256 amount = amounts[i];
+      uint256 amount = assetAmounts[i].amount;
 
       _transferAsset(address(feeAggregator), asset, amount);
       emit AssetTransferred(address(feeAggregator), asset, amount);
@@ -107,47 +99,46 @@ contract FeeRouter is ITypeAndVersion, EmergencyWithdrawer, LinkReceiver, Native
   }
 
   /// @dev Withdraws non allowlisted assets from the contract
-  /// @dev precondition The caller must have the WITHDRAWER_ROLE
-  /// @dev precondition The list of WithdrawAssetAmount must not be empty
-  /// @dev precondition The withdrawn assets must not be allowlisted
-  /// @param assets The list of non allowlisted assets to withdraw
-  /// @param amounts The list of non allowlisted asset amounts to withdraw
+  /// @dev precondition - The contract must not be paused
+  /// @dev precondition - The caller must have the WITHDRAWER_ROLE
+  /// @dev precondition - The list of assetAmounts must not be empty
+  /// @dev precondition - The withdrawn assets must not be allowlisted
+  /// @param assetAmounts The list of non allowlisted assets and amounts to withdraw
   function withdrawNonAllowlistedAssets(
     address to,
-    address[] calldata assets,
-    uint256[] calldata amounts
-  ) external onlyRole(Roles.WITHDRAWER_ROLE) {
-    _validateAssetTransferInputs(assets, amounts);
+    Common.AssetAmount[] calldata assetAmounts
+  ) external whenNotPaused onlyRole(Roles.WITHDRAWER_ROLE) {
+    if (assetAmounts.length == 0) {
+      revert Errors.EmptyList();
+    }
 
     IFeeAggregator feeAggregator = s_feeAggregator;
 
-    (bool areAssetsAllowlisted,) = feeAggregator.areAssetsAllowlisted(assets);
+    for (uint256 i; i < assetAmounts.length; ++i) {
+      address asset = assetAmounts[i].asset;
 
-    if (areAssetsAllowlisted) {
-      revert Errors.AssetAllowlisted(assets[0]);
-    }
+      if (feeAggregator.isAssetAllowlisted(asset)) {
+        revert Errors.AssetAllowlisted(asset);
+      }
 
-    for (uint256 i = 0; i < assets.length; ++i) {
-      address asset = assets[i];
-      uint256 amount = amounts[i];
+      uint256 amount = assetAmounts[i].amount;
 
       _transferAsset(to, asset, amount);
-      emit NonAllowlistedAssetWithdrawn(msg.sender, asset, amount);
+
+      emit NonAllowlistedAssetWithdrawn(to, asset, amount);
     }
   }
 
   /// @notice Withdraws native tokens from the contract to the specified address
-  /// @dev precondition The caller must have the WITHDRAWER_ROLE
+  /// @dev precondition - The contract must not be paused
+  /// @dev precondition - The caller must have the WITHDRAWER_ROLE
   /// @param to The address to transfer the native tokens to
   /// @param amount The amount of native tokens to transfer
-  function withdrawNative(address payable to, uint256 amount) external onlyRole(Roles.WITHDRAWER_ROLE) {
-    address[] memory wrappedNativeToken = new address[](1);
-    wrappedNativeToken[0] = address(s_wrappedNativeToken);
+  function withdrawNative(address payable to, uint256 amount) external whenNotPaused onlyRole(Roles.WITHDRAWER_ROLE) {
+    address wrappedNativeToken = address(s_wrappedNativeToken);
 
-    (bool isAllowlisted,) = s_feeAggregator.areAssetsAllowlisted(wrappedNativeToken);
-
-    if (isAllowlisted) {
-      revert Errors.AssetAllowlisted(wrappedNativeToken[0]);
+    if (s_feeAggregator.isAssetAllowlisted(wrappedNativeToken)) {
+      revert Errors.AssetAllowlisted(wrappedNativeToken);
     }
 
     _transferNative(to, amount);
@@ -176,10 +167,10 @@ contract FeeRouter is ITypeAndVersion, EmergencyWithdrawer, LinkReceiver, Native
       revert Errors.InvalidZeroAddress();
     }
     if (newFeeAggregator == address(s_feeAggregator)) {
-      revert Errors.FeeAggregatorNotUpdated();
+      revert Errors.ValueNotUpdated();
     }
     if (!IERC165(newFeeAggregator).supportsInterface(type(IFeeAggregator).interfaceId)) {
-      revert InvalidFeeAggregator(newFeeAggregator);
+      revert Errors.InvalidFeeAggregator(newFeeAggregator);
     }
 
     s_feeAggregator = IFeeAggregator(newFeeAggregator);

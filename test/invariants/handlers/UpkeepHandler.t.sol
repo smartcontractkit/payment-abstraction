@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {FeeAggregator} from "src/FeeAggregator.sol";
 import {SwapAutomator} from "src/SwapAutomator.sol";
@@ -35,7 +35,7 @@ contract UpkeepHandler is BaseTest {
     /// amountOutMinimum
     uint256 amountOut;
     /// @notice The amount of LINK to receive from UniswapQuoter - bound between +/- 2.5% of the
-    /// amountOutFromOracle
+    /// amountOutFromFeed
     uint256 amountOutFromQuoter;
   }
 
@@ -91,7 +91,7 @@ contract UpkeepHandler is BaseTest {
     s_mockLinkUsdFeed.transmit(int256(linkPrice));
 
     uint256 totalAmountOutMinimum;
-    uint256 recipientBalanceBefore = s_mockLink.balanceOf(RECEIVER);
+    uint256 recipientBalanceBefore = s_mockLink.balanceOf(i_receiver);
     bool success;
 
     for (uint256 i; i < params.length; ++i) {
@@ -110,9 +110,9 @@ contract UpkeepHandler is BaseTest {
       // Bound asset price between 1 and 10_000_000e8
       upkeepParams.price = bound(upkeepParams.price, 1, MAX_LINK_PRICE);
 
-      // Transmit the asset price to the mock asset oracle
-      MockAggregatorV3(address(swapParams.oracle)).transmit(int256(upkeepParams.price));
-      uint256 assetPrice = _getAssetPrice(swapParams.oracle);
+      // Transmit the asset price to the mock asset usd feed
+      MockAggregatorV3(address(swapParams.usdFeed)).transmit(int256(upkeepParams.price));
+      uint256 assetPrice = _getAssetPrice(swapParams.usdFeed);
       uint256 assetUnit = 10 ** IERC20Metadata(asset).decimals();
 
       // Bound amount to swap between its minimum swap size corresponding value and the upper bound
@@ -127,21 +127,21 @@ contract UpkeepHandler is BaseTest {
       uint256 assetUsdValue = upkeepParams.amount * upkeepParams.price;
       uint256 swapAmount = Math.min(swapParams.maxSwapSizeUsd * assetUnit, assetUsdValue) / assetPrice;
 
-      uint256 amountOutFromOracle =
-        _convertToLink(swapAmount, IERC20Metadata(asset), AggregatorV3Interface(swapParams.oracle));
-      uint256 amountOutOracleWithSlippage =
-        amountOutFromOracle.percentMul(PercentageMath.PERCENTAGE_FACTOR - swapParams.maxSlippage);
+      uint256 amountOutFromFeed =
+        _convertToLink(swapAmount, IERC20Metadata(asset), AggregatorV3Interface(swapParams.usdFeed));
+      uint256 amountOutFeedWithSlippage =
+        amountOutFromFeed.percentMul(PercentageMath.PERCENTAGE_FACTOR - swapParams.maxSlippage);
 
-      // Bound amountOutFromQuoter between +/- 2.5% of the amountOutFromOracle
+      // Bound amountOutFromQuoter between +/- 2.5% of the amountOutFromFeed
       upkeepParams.amountOutFromQuoter = bound(
         upkeepParams.amountOutFromQuoter,
-        amountOutFromOracle.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_PRICE_IMPACT / 2),
-        amountOutFromOracle.percentMul(PercentageMath.PERCENTAGE_FACTOR + MAX_PRICE_IMPACT / 2)
+        amountOutFromFeed.percentMul(PercentageMath.PERCENTAGE_FACTOR - MAX_PRICE_IMPACT / 2),
+        amountOutFromFeed.percentMul(PercentageMath.PERCENTAGE_FACTOR + MAX_PRICE_IMPACT / 2)
       );
       s_mockUniswapQuoterV2.setAssetQuoterAmountOut(asset, upkeepParams.amountOutFromQuoter);
 
       // Bound amountOut between +/- 5% of the amountOutMinimum
-      uint256 amountOutMinimum = Math.max(upkeepParams.amountOutFromQuoter, amountOutFromOracle).percentMul(
+      uint256 amountOutMinimum = Math.max(upkeepParams.amountOutFromQuoter, amountOutFromFeed).percentMul(
         PercentageMath.PERCENTAGE_FACTOR - swapParams.maxSlippage
       );
       upkeepParams.amountOut = bound(
@@ -151,10 +151,10 @@ contract UpkeepHandler is BaseTest {
       );
 
       uint256 minPostSwapAmount =
-        amountOutFromOracle.percentMul(PercentageMath.PERCENTAGE_FACTOR - swapParams.maxPriceDeviation);
-      // When amountOutUniswapQuoter is less than amountOutOracleWithSlippage, checkUpKeep will
+        amountOutFromFeed.percentMul(PercentageMath.PERCENTAGE_FACTOR - swapParams.maxPriceDeviation);
+      // When amountOutUniswapQuoter is less than amountOutFeedWithSlippage, checkUpKeep will
       // exclude this asset.
-      if (upkeepParams.amountOutFromQuoter >= amountOutOracleWithSlippage) {
+      if (upkeepParams.amountOutFromQuoter >= amountOutFeedWithSlippage) {
         if (upkeepParams.amountOut >= amountOutMinimum && upkeepParams.amountOut >= minPostSwapAmount) {
           // If the amountOut is greater or equal than both amountOutMinimum and minPostSwapAmount,
           // the performUpkeep call should not revert so we set success to true
@@ -188,7 +188,7 @@ contract UpkeepHandler is BaseTest {
       s_swapAutomator.performUpkeep(data);
 
       assertGe(
-        s_mockLink.balanceOf(RECEIVER),
+        s_mockLink.balanceOf(i_receiver),
         recipientBalanceBefore + totalAmountOutMinimum,
         "Invariant violated: total amount out from swaps greater then threshold"
       );
@@ -211,13 +211,13 @@ contract UpkeepHandler is BaseTest {
   function _convertToLink(
     uint256 assetAmount,
     IERC20Metadata asset,
-    AggregatorV3Interface oracle
+    AggregatorV3Interface usdFeed
   ) private view returns (uint256) {
     uint256 tokenDecimals = asset.decimals();
     if (tokenDecimals < 18) {
-      return (assetAmount * _getAssetPrice(oracle) * 10 ** (18 - tokenDecimals)) / _getAssetPrice(s_mockLinkUsdFeed);
+      return (assetAmount * _getAssetPrice(usdFeed) * 10 ** (18 - tokenDecimals)) / _getAssetPrice(s_mockLinkUsdFeed);
     } else {
-      return (assetAmount * _getAssetPrice(oracle)) / _getAssetPrice(s_mockLinkUsdFeed) / 10 ** (tokenDecimals - 18);
+      return (assetAmount * _getAssetPrice(usdFeed)) / _getAssetPrice(s_mockLinkUsdFeed) / 10 ** (tokenDecimals - 18);
     }
   }
 

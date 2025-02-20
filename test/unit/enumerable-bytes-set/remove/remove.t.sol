@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {Test} from "forge-std/Test.sol";
 import {EnumerableBytesSet} from "src/libraries/EnumerableBytesSet.sol";
@@ -31,11 +31,8 @@ contract EnumerableBytesSet_RemoveUnitTest is Test {
     bytes memory value2 = "value2";
     bytes[] memory expected = new bytes[](0);
 
-    vm.expectRevert();
-    assertEq(s_set.at(0), "");
-    vm.expectRevert();
-    assertEq(s_set.at(1), "");
-
+    assertEq(s_set.at(0), "value1");
+    assertEq(s_set.at(1), "value2");
     assertTrue(s_set.remove(value1));
     assertTrue(s_set.remove(value2));
     assertEq(s_set.length(), 0);

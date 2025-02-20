@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 /// @notice Library for managing sets of bytes. Reuses OpenZeppelin's EnumerableSet library logic but for bytes.
 /* solhint-disable chainlink-solidity/prefix-internal-functions-with-underscore */
@@ -121,7 +121,7 @@ library EnumerableBytesSet {
   /// uncallable if the set grows to a point where copying to memory consumes too much gas to fit in a block.
   /// @param set The set to get the values from.
   ///
-  /// @return An array containing all the values in the set.
+  /// @return An array containing all the values in the set.
   function values(
     BytesSet storage set
   ) internal view returns (bytes[] memory) {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.24;
+pragma solidity 0.8.26;
 
 import {NativeTokenReceiver} from "src/NativeTokenReceiver.sol";
 import {BaseForkTest} from "test/fork/BaseForkTest.t.sol";
